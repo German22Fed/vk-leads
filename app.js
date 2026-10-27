@@ -1,8 +1,8 @@
-import {VkConnection} from './vk-connection.js?v=11.21';
-import {getBridge} from './vk-start.js?v=11.21';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.21';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.21';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.21';
+import {VkConnection} from './vk-connection.js?v=11.22';
+import {getBridge} from './vk-start.js?v=11.22';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.22';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.22';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.22';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -108,7 +108,7 @@ async function api(method,params){
 function searchModal(){
  const saved=settings.leadFilters||{};
  const presets={
-  all:'салон красоты парикмахерская косметология маникюр брови массаж\nмебель кухни шкафы интерьер дизайн декор шторы\nремонт строительство монтаж электрика сантехника окна двери клининг\nпсихолог психотерапевт коуч консультант юрист бухгалтер риэлтор\nмагазин одежда обувь аксессуары цветы подарки техника шоурум\nкафе ресторан пекарня кондитерская доставка еды кофе бар\nфитнес спорт йога танцы студия бассейн туризм отель фотограф\nклиника стоматология врач здоровье ветеринар аптека\nагентство студия школа курсы детский центр услуги мастерская',
+  all:'салон красоты парикмахерская барбершоп косметология маникюр брови ресницы массаж эпиляция\nмебель мебель на заказ кухни кухни на заказ шкафы диваны интерьер дизайн декор шторы\nремонт строительство монтаж электрика сантехника окна двери потолки клининг\nпсихолог психология психотерапевт коуч консультант юрист бухгалтер риэлтор недвижимость\nмагазин одежда обувь аксессуары цветы подарки техника шоурум бутик\nкафе ресторан пекарня кондитерская доставка еды кофе бар суши пицца\nфитнес спорт йога танцы студия бассейн туризм отель фотограф\nклиника стоматология врач здоровье ветеринар аптека массаж\nагентство студия школа курсы детский центр услуги мастерская производство',
   fashion:'одежда магазин одежды обувь аксессуары сумки шоурум бутик ювелир',
   beauty:'салон красоты парикмахерская барбершоп косметология маникюр брови массаж',
   food:'кафе ресторан бар пекарня кондитерская доставка еды кофе суши пицца',
@@ -119,7 +119,7 @@ function searchModal(){
   events:'фотограф фотостудия видеограф свадьба ведущий праздник туризм отель',
   local:'магазин цветы подарки автосервис автомойка такси прокат доставка'
  };
- const defaultMinus='казино, ставки, букмекер, крипто, форекс, инвестиции, накрутка, подписчики, бот, парсер, игра, гейминг, киберспорт, аниме, мемы, новости, политика, знакомства, 18+, эротика, vpn, торрент';
+ const defaultMinus='казино, ставки, букмекер, крипто, форекс, инвестиции, накрутка, подписчики, бот, парсер, игра, гейминг, киберспорт, аниме, мемы, новости, политика, знакомства, 18+, эротика, vpn, торрент, ozon, озон, wildberries, вайлдберриз, авито, алиэкспресс, маркетплейс';
  modal('Поиск клиентов для дизайна',`<p class="modalintro">Подбираем реальные публичные сообщества через VK API. Вы сами выбираете направление, оцениваете карточку и вручную решаете, открывать ли диалог.</p>
  <label for="leadDirection">Направление</label><select class="statusselect" id="leadDirection"><option value="all">Все направления — расширенный каталог</option><option value="fashion">Одежда и обувь</option><option value="beauty">Красота и здоровье</option><option value="food">Еда и заведения</option><option value="services">Услуги и локальный бизнес</option><option value="experts">Эксперты и личные бренды</option><option value="home">Дом, мебель и ремонт</option><option value="health">Здоровье и спорт</option><option value="events">Фото, события и туризм</option><option value="local">Магазины и локальные услуги</option><option value="custom">Свои ключевые слова</option></select>
  <label for="searchQuery">Ключевые слова в названии сообщества</label><textarea class="field" id="searchQuery" rows="4" placeholder="по одному слову или фразе на строку">${esc(saved.query||presets.all)}</textarea>
