@@ -1,7 +1,7 @@
-import {Collector, initialState} from './collector-engine.js?v=11.14';
+import {Collector, initialState} from './collector-engine.js?v=11.15';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.14';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.14';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.15';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.15';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
 export const AUTO_QUERIES=['цветы','пекарня','маникюр','ремонт','мебель','фитнес','кафе','услуги'];
@@ -49,14 +49,14 @@ export function browserStorage(indexedDB, name) {
 }
 
 export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,onShowCandidates,onReset,onAutoGroups,onFreshGroups,onFreshStart,onSearch,onRegisterAutoStart}) {
-  $('collectorPanel').innerHTML=`<div class="sectionheading"><div><h2>Автопоиск и наблюдение</h2><p>Подбор новых возможностей — прямо в ленте.</p></div><span id="monitorBadge">Остановлено</span></div>
+  $('collectorPanel').innerHTML=`<div class="sectionheading"><div><h2>Ручной поиск и наблюдение</h2><p>Подбор новых возможностей — прямо в ленте.</p></div><span id="monitorBadge">Остановлено</span></div>
   <p class="collectorHint">Свежие группы без ввода ID: находим примерную верхнюю границу номеров ВК и загружаем сообщества от неё назад. Дата создания этих групп неизвестна. Затем можно наблюдать появление следующих ID.</p>
   <div class="modalrow"><button id="freshStart" class="primary">Найти свежие группы без ID</button><button id="freshStop" class="secondary" disabled>Остановить поиск</button><button id="freshMore" class="secondary" disabled>Ещё 500 ID</button></div>
-  <p id="freshStatus" role="status" aria-live="polite">Подключите VK и нажмите «Найти свежие группы без ID». Первые 500 номеров; до 4 800 за один поиск.</p>
+  <p id="freshStatus" role="status" aria-live="polite">Подключите VK и нажмите «Найти свежие группы без ID». За один ручной запуск проверяется не более 1 000 номеров.</p>
   <button id="freshReport" class="textbtn" disabled>Скачать отчёт поиска (без ключей)</button>
   <details><summary>Дополнительно: поиск по тематикам</summary>
-  <p class="collectorHint">Автопоиск сам обновляет выдачу VK по нескольким тематикам и добавляет найденные сообщества в ленту. Это свежие результаты выдачи, а не подтверждённая дата создания: VK не публикует общий поток новых сообществ.</p>
-  <div class="modalrow"><button id="autoStart" class="primary">Включить автопоиск</button><button id="autoStop" class="secondary" disabled>Остановить автопоиск</button><span id="autoStatus" role="status">Остановлено</span></div>
+  <p class="collectorHint">Тематический поиск запускается только по вашей кнопке, проверяет ограниченную выдачу VK и добавляет результаты в ленту. Это свежие результаты выдачи, а не подтверждённая дата создания: VK не публикует общий поток новых сообществ.</p>
+  <div class="modalrow"><button id="autoStart" class="primary">Запустить тематический поиск</button><button id="autoStop" class="secondary" disabled>Остановить тематический поиск</button><span id="autoStatus" role="status">Остановлено</span></div>
   <button id="manualTopicSearch" class="secondary">Выбрать свои тематики</button>
   </details>
   <p class="collectorHint">Проверяем соседние ID примерно раз в минуту. В ленту попадают группы, которые появились после двух проверок без них. Это интервал появления в API, а не подтверждённая дата создания. Охват ограничен выбранным диапазоном.</p>
@@ -65,11 +65,11 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
   <details id="monitorSetup"><summary>Ручной ориентир и настройки (необязательно)</summary>
   <label for="monitorSeed">Ссылка или ID сообщества, которое точно создано недавно</label><input class="field" id="monitorSeed" placeholder="https://vk.ru/club…" autocomplete="off">
   <p class="collectorHint">Обычно ориентир определяется автоматически. Здесь можно указать его вручную. Возраст группы по её ID не подтверждается; существующие группы первой проверки считаются исходной базой.</p>
-  <div class="collectorGrid"><label>Диапазон<select class="statusselect" id="monitorWidth"><option value="100">100 ID</option><option value="500" selected>500 ID</option><option value="1000">1 000 ID</option><option value="2000">2 000 ID</option></select></label><label>Повторять через<select class="statusselect" id="monitorInterval"><option value="60">1 минуту</option><option value="120">2 минуты</option><option value="300">5 минут</option></select></label></div>
+  <div class="collectorGrid"><label>Диапазон<select class="statusselect" id="monitorWidth"><option value="100">100 ID</option><option value="500" selected>500 ID</option></select></label><label>Повторять через<select class="statusselect" id="monitorInterval"><option value="300">5 минут</option><option value="600" selected>10 минут</option><option value="900">15 минут</option></select></label></div>
   <button id="monitorSave" class="secondary">Проверить ориентир и сохранить</button></details>
   <div class="modalrow"><button id="monitorStart" class="primary">Запустить наблюдение</button><button id="monitorStop" class="secondary" disabled>Остановить</button><button id="monitorShow" class="secondary">Показать кандидатов</button></div>
   <p id="monitorAction" role="status" aria-live="polite"></p>
-  <p class="collectorHint">Работает, пока Mini App открыт на экране. При сворачивании — пауза. История хранится на этом устройстве; после закрытия нужно подключить VK и запустить наблюдение снова. Общего круглосуточного сервера пока нет.</p>
+  <p class="collectorHint">Работает, пока Mini App открыт на экране. При сворачивании — пауза. История хранится на этом устройстве; после закрытия нужно подключить VK и запустить наблюдение снова. Запуск наблюдения всегда подтверждается отдельной кнопкой.</p>
   <details><summary>Журнал и новое наблюдение</summary><p id="monitorLast"></p><div class="modalrow"><button class="textbtn" id="monitorExport">Скачать журнал</button><button class="textbtn" id="monitorReset">Начать новую историю</button></div><p>Новая история удалит наблюдения сборщика на этом устройстве. Сохранённые карточки останутся.</p><button class="secondary" id="monitorResetConfirm" hidden>Подтверждаю сброс истории</button></details>`;
   const user=Number(new URLSearchParams(location.search).get('vk_user_id'))||'browser';
   const collector=new Collector({api,storage:browserStorage(window.indexedDB,'radar-monitor-'+user),maxRecords:10000});
@@ -90,8 +90,8 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     $('freshStart').disabled=!loaded||freshBusy||acting||s.busy||s.running||wanted||autoBusy;
     $('freshStop').disabled=!freshBusy;
     $('freshReport').disabled=freshBusy||!freshReport;
-    $('freshMore').disabled=freshBusy||acting||s.busy||s.running||wanted||autoBusy||!nextFreshId||nextFreshId<2||freshChecked>=4800;
-    $('freshMore').textContent=freshChecked>=4800?'Лимит 4 800 ID достигнут':`Ещё ${Math.min(500,4800-freshChecked)} ID`;
+    $('freshMore').disabled=freshBusy||acting||s.busy||s.running||wanted||autoBusy||!nextFreshId||nextFreshId<2||freshChecked>=1000;
+    $('freshMore').textContent=freshChecked>=1000?'Лимит 1 000 ID достигнут':`Ещё ${Math.min(500,1000-freshChecked)} ID`;
     for(const id of ['monitorSave','monitorSeed','monitorWidth','monitorInterval','monitorReset'])$(id).disabled=!loaded||acting||s.running||s.busy||wanted||freshBusy;
     const next=JSON.stringify([s.cycles,s.checkedIds,s.runs[0]]);
     if(next!==signature&&!s.busy){signature=next;onUpdate({connected:false,groups:s.groups.map(g=>({...g,source:'Наблюдение Mini App'}))});}
@@ -104,13 +104,13 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     catch(e){$('autoStatus').textContent=e.message;autoWanted=false;clearInterval(autoTimer);autoTimer=null;}
     finally{autoBusy=false;render();}
   }
-  function startAuto(){if(autoWanted)return;if(!isConnected()){onConnect();return;}autoWanted=true;autoOnce();autoTimer=setInterval(autoOnce,300000);render();}
+  function startAuto(){if(autoWanted)return;if(!isConnected()){onConnect();return;}autoWanted=true;autoOnce();autoTimer=setInterval(autoOnce,600000);render();}
   function stopAuto(){autoWanted=false;clearInterval(autoTimer);autoTimer=null;$('autoStatus').textContent='Автопоиск остановлен.';render();}
   async function findFresh(more=false){
     if(freshBusy||collector.busy||collector.running||wanted||autoBusy)return;
     if(!isConnected()){onConnect();$('freshStatus').textContent='Подключите VK, затем повторите поиск свежих групп.';return;}
     stopAuto();if(!more)onFreshStart?.();freshBusy=true;freshAbort=new AbortController();
-    freshReport={version:'11.14',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
+      freshReport={version:'11.15',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
     const signal=freshAbort.signal,progress=s=>{$('freshStatus').textContent=s;};
     try{
       if(!more){
@@ -123,11 +123,10 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
       }
       let shown=0;
       freshReport.pageTopId=nextFreshId;
-      const result=await collectRecentIds({api,topId:nextFreshId,count:Math.min(500,4800-freshChecked),signal,onProgress:progress,onBatch:batch=>{shown+=batch.length;freshReport.loadedIds.push(...batch.map(g=>g.id));onFreshGroups?.(batch);}});
+      const result=await collectRecentIds({api,topId:nextFreshId,count:Math.min(500,1000-freshChecked),signal,onProgress:progress,onBatch:batch=>{shown+=batch.length;freshReport.loadedIds.push(...batch.map(g=>g.id));onFreshGroups?.(batch);}});
       freshReport.status='ok';freshReport.checked=result.checked;freshReport.wallErrors=result.wallErrors;freshReport.incompleteCount=result.incompleteCount;freshReport.deletedCount=result.deletedCount;
       nextFreshId=result.nextId;freshChecked+=result.checked;
-      if(!more && !collector.running) collector.start();
-      progress(`Загружено ${shown} реальных групп. Проверено ${freshChecked} ID. Служебных/удалённых пропущено: ${result.deletedCount}; без названия: ${result.incompleteCount}. Стен проверено: ${result.wallChecks}; недоступно: ${result.wallErrors}. Дата создания не установлена — это свежий снимок по ID. ${freshReport.frontier?.settled===false?'Граница продолжала изменяться — показан снимок на момент проверки. ':''}Наблюдение новых ID запущено автоматически; оставьте Mini App открытым для фиксации появлений.`);
+      progress(`Загружено ${shown} реальных групп. Проверено ${freshChecked} ID. Служебных/удалённых пропущено: ${result.deletedCount}; без названия: ${result.incompleteCount}. Стен проверено: ${result.wallChecks}; недоступно: ${result.wallErrors}. Дата создания не установлена — это свежий снимок по ID. ${freshReport.frontier?.settled===false?'Граница продолжала изменяться — показан снимок на момент проверки. ':''}Для наблюдения следующих появлений запустите его отдельной кнопкой.`);
     }catch(e){freshReport.status=signal.aborted?'cancelled':'error';freshReport.error=e.message;progress(e.message+' Уже загруженные карточки сохранены.');}
     finally{freshReport.finishedAt=Date.now();freshBusy=false;freshAbort=null;render();}
   }

@@ -1,4 +1,4 @@
-import {isUsableGroup} from './vk-data.js?v=11.14';
+import {isUsableGroup} from './vk-data.js?v=11.15';
 
 export function errorText(error, secret = '') {
   const data = error?.error_data || error?.error || error?.data || error;
@@ -38,7 +38,7 @@ export function browserBridge(win = window, doc = document) {
   return () => {
     if (ready) return ready;
     ready = (async () => {
-      if (!isVkHost(win)) throw Error('Страница открыта как обычный сайт. Откройте https://vk.ru/app54841836 и подключитесь внутри приложения.');
+      if (!isVkHost(win)) throw Error('Страница открыта как обычный сайт. Откройте это Mini App внутри VK и подключитесь там.');
       if (!win.vkBridge) await deadline(new Promise((resolve, reject) => {
         const script = doc.createElement('script');
         script.src = new URL('./vk-bridge.min.js', doc.baseURI).href;
@@ -48,7 +48,7 @@ export function browserBridge(win = window, doc = document) {
       }), 12000, 'VK Bridge не загрузился за 12 секунд. Обновите Mini App.');
       const bridge = win.vkBridge;
       if (!bridge?.send) throw Error('VK Bridge недоступен. Обновите приложение.');
-      await deadline(bridge.send('VKWebAppInit'), 12000, 'VK не подтвердил запуск за 12 секунд. Откройте приложение через https://vk.ru/app54841836, а не прямую ссылку на сайт.');
+      await deadline(bridge.send('VKWebAppInit'), 12000, 'VK не подтвердил запуск за 12 секунд. Откройте Mini App из VK, а не прямую ссылку на сайт.');
       return bridge;
     })().catch(error => { ready = null; throw error; });
     return ready;
@@ -74,7 +74,7 @@ export class VkConnection {
   async performConnect(appId, launchId) {
     let candidate = '';
     try {
-      if (!Number.isSafeInteger(appId) || appId <= 0) throw Error('Укажите корректный ID Mini App.');
+      if (!Number.isSafeInteger(appId) || appId <= 0) throw Error('Укажите ID Mini App, открытого внутри VK.');
       if (launchId && launchId !== appId) throw Error(`VK запустил приложение ${launchId}, а в настройках указано ${appId}.`);
       this.set('connecting', '1/4 · Проверяем запуск внутри VK…');
       this.bridge = await deadline(this.getBridge(), this.timeout, 'Нет ответа VK Bridge. Откройте приложение внутри VK и повторите подключение.');

@@ -1,5 +1,5 @@
-import {initBrowserCollector} from './browser-collector.js?v=11.14';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.14';
+import {initBrowserCollector} from './browser-collector.js?v=11.15';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.15';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const when = n => n ? new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК' : '—';
@@ -28,7 +28,7 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
       <label for="collectorKey">Сервисный ключ приложения VK API</label><input type="password" class="field" id="collectorKey" autocomplete="off" placeholder="Сервисный ключ приложения">
       <p class="collectorHint">Берите его в кабинете Mini App: «Разработка → Ключи доступа → Сервисный ключ». Не используйте «Защищённый ключ» и ключ из настроек сообщества «Работа с API». Ключ передаётся только локальному серверу, хранится в памяти до остановки сервера и не записывается в базу или экспорт.</p>
       <div class="modalrow"><button class="primary" id="collectorConnect" disabled>Проверить и подключить</button><button class="secondary" id="collectorDisconnect">Отключить ключ</button></div><p id="collectorAction" role="status" aria-live="polite"></p>
-      <div class="collectorGrid"><label>Начальный ID<input type="number" class="field" id="collectorStart" min="1" placeholder="ID недавно созданного сообщества"></label><label>Размер диапазона<select class="statusselect" id="collectorWidth"><option value="100">100 ID</option><option value="500" selected>500 ID</option><option value="1000">1 000 ID</option><option value="2000">2 000 ID</option></select></label><label>Повторять через<select class="statusselect" id="collectorInterval"><option value="60">1 минуту</option><option value="120" selected>2 минуты</option><option value="300">5 минут</option></select></label></div>
+      <div class="collectorGrid"><label>Начальный ID<input type="number" class="field" id="collectorStart" min="1" placeholder="ID недавно созданного сообщества"></label><label>Размер диапазона<select class="statusselect" id="collectorWidth"><option value="100">100 ID</option><option value="500" selected>500 ID</option></select></label><label>Повторять через<select class="statusselect" id="collectorInterval"><option value="300">5 минут</option><option value="600" selected>10 минут</option><option value="900">15 минут</option></select></label></div>
       <label><input type="checkbox" id="collectorAdvance" checked> Сдвигать диапазон вперёд по мере появления ID</label>
       <p class="collectorHint">Нужен начальный ID рядом с новыми сообществами. Поиск по тематикам не определяет последний ID во всём ВК. Пропущенные номера позади диапазона перепроверяются в течение 24 часов, не более 500 за цикл.</p>
       <div class="modalrow"><button class="primary" id="collectorAutoSeed">Найти свежие группы без ID</button><button class="secondary" id="collectorAutoStop" disabled>Остановить поиск</button><button class="secondary" id="collectorSeed">Взять максимальный ID из базы</button><button class="secondary" id="collectorSave">Сохранить диапазон</button></div><p id="collectorAutoStatus" role="status"></p>
