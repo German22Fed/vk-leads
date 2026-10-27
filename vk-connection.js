@@ -1,4 +1,4 @@
-import {isUsableGroup} from './vk-data.js?v=11.20';
+import {isUsableGroup} from './vk-data.js?v=11.21';
 
 export function errorText(error, secret = '') {
   const data = error?.error_data || error?.error || error?.data || error;
