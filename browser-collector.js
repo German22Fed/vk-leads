@@ -1,10 +1,10 @@
-import {Collector, initialState} from './collector-engine.js?v=11.23';
+import {Collector, initialState} from './collector-engine.js?v=11.24';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.23';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.23';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.24';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.24';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
-export const AUTO_QUERIES=['цветы','пекарня','маникюр','ремонт','мебель','фитнес','кафе','услуги'];
+export const AUTO_QUERIES=['ресницы','брови','маникюр','салон красоты','парикмахерская','психолог','психология','мебель на заказ','кухни на заказ','диваны','ремонт квартир','магазин','клиника','стоматология','кафе','фотограф','студия'];
 
 export async function discoverOnce({api,queries=AUTO_QUERIES,count=50,offset=0,seen=new Set(),onProgress=()=>{}}={}) {
   const ids=new Set(), pages=[];
@@ -115,7 +115,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     if(freshBusy||collector.busy||collector.running||wanted||autoBusy)return;
     if(!isConnected()){onConnect();$('freshStatus').textContent='Подключите VK, затем повторите поиск свежих групп.';return;}
     stopAuto();if(!more)onFreshStart?.();freshBusy=true;freshAbort=new AbortController();
-      freshReport={version:'11.23',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
+      freshReport={version:'11.24',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
     const signal=freshAbort.signal,progress=s=>{$('freshStatus').textContent=s;};
     try{
       if(!more){
@@ -203,9 +203,23 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
   $('leadFind').onclick=async()=>{
     if(acting||freshBusy)return;
     acting=true;$('leadFind').disabled=true;$('leadStatus').textContent='Проверяем VK и готовим подходящие сообщества…';
-    try{const period=document.querySelector('.leadPeriodButtons .selected')?.dataset.period||'today';chooseLeadPeriod(period);await startObservation();onShowCandidates?.(period);$('leadStatus').textContent='Поиск запущен. Показываем только подходящие сообщества выбранного периода.';}
+    try{
+      const period=document.querySelector('.leadPeriodButtons .selected')?.dataset.period||'today';chooseLeadPeriod(period);
+      if(!isConnected()){onConnect?.();throw Error('Подключите VK и повторите поиск.');}
+      autoBusy=true;render();
+      let immediate=[];
+      try{immediate=await discoverOnce({api,queries:AUTO_QUERIES,count:20,offset:0,seen:autoSeen,onProgress:s=>{$('leadStatus').textContent=s;}});}
+      catch(searchError){
+        $('leadStatus').textContent='Тематическая выдача VK недоступна, проверяем свежие сообщества…';
+        autoBusy=false;await findFresh();autoBusy=true;
+      }
+      immediate.forEach(g=>autoSeen.add(g.id));
+      if(immediate.length)onAutoGroups?.(immediate);
+      await startObservation();
+      $('leadStatus').textContent=immediate.length?`Сейчас найдено подходящих сообществ: ${immediate.length}. Наблюдение новых продолжено.`:'Подходящих карточек в текущей выдаче нет. Наблюдение новых продолжено.';
+    }
     catch(e){$('leadStatus').textContent=e.message;}
-    finally{acting=false;$('leadFind').disabled=false;render();}
+    finally{autoBusy=false;acting=false;$('leadFind').disabled=false;render();}
   };
   chooseLeadPeriod('today');
   render();
