@@ -1,8 +1,8 @@
-import {VkConnection} from './vk-connection.js?v=11.13';
-import {getBridge} from './vk-start.js?v=11.13';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.13';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.13';
-import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.13';
+import {VkConnection} from './vk-connection.js?v=11.14';
+import {getBridge} from './vk-start.js?v=11.14';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.14';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.14';
+import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.14';
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
 const date=n=>new Date(n).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})+' МСК';
@@ -154,8 +154,8 @@ async function search(query,limit,options={}){
   const ids=[...unique], before=new Set(live.map(g=>g.id));
   for(let offset=0;offset<ids.length&&!runCancelled;offset+=100){
    const result=await enrich(ids.slice(offset,offset+100));
-   const now=Date.now();
-   result.collected=result.collected.map(g=>({...g,firstSeen:g.firstSeen||now})).filter(g=>leadFit(g,options)&&(!options.recentHours||now-(g.firstSeen||now)<=options.recentHours*3600000));
+   const now=Date.now(), known=new Map(live.map(g=>[g.id,g]));
+   result.collected=result.collected.map(g=>({...g,firstSeen:known.get(g.id)?.firstSeen||now})).filter(g=>leadFit(g,options)&&(!options.recentHours||now-(g.firstSeen||now)<=options.recentHours*3600000));
    failed+=result.failed;processed+=result.collected.length;
    newCount+=result.collected.filter(g=>!before.has(g.id)).length;
    live=mergeGroups(live,result.collected);persist();render();
