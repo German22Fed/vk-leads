@@ -1,7 +1,7 @@
-import {Collector, initialState} from './collector-engine.js?v=11.25';
+import {Collector, initialState} from './collector-engine.js?v=11.26';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.25';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.25';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.26';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.26';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
 export const AUTO_QUERIES=['ресницы','брови','маникюр','салон красоты','парикмахерская','психолог','психология','мебель на заказ','кухни на заказ','диваны','ремонт квартир','магазин','клиника','стоматология','кафе','фотограф','студия'];
@@ -115,7 +115,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     if(freshBusy||collector.busy||collector.running||wanted||autoBusy)return;
     if(!isConnected()){onConnect();$('freshStatus').textContent='Подключите VK, затем повторите поиск свежих групп.';return;}
     stopAuto();if(!more)onFreshStart?.();freshBusy=true;freshAbort=new AbortController();
-      freshReport={version:'11.25',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
+      freshReport={version:'11.26',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
     const signal=freshAbort.signal,progress=s=>{$('freshStatus').textContent=s;};
     try{
       if(!more){
@@ -194,7 +194,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     if(!isConnected()){onConnect?.();throw Error('Подключите VK и повторите поиск.');}
     if(!collector.state.config){
       freshAbort=new AbortController();freshBusy=true;render();
-      try{const frontier=await findIdFrontier({api,signal:freshAbort.signal,onProgress:s=>{$('leadStatus').textContent='Подготавливаем поиск…';}});await collector.configure({startId:frontier.id+1,width:500,intervalSeconds:600,advance:true});}
+      try{const frontier=await findIdFrontier({api,signal:freshAbort.signal,onProgress:s=>{$('leadStatus').textContent='Подготавливаем поиск…';}});await collector.configure({startId:frontier.id+1,width:500,intervalSeconds:60,advance:true});}
       finally{freshBusy=false;freshAbort=null;}
     }
     if(document.hidden)throw Error('Откройте Mini App на экране и повторите поиск.');
