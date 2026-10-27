@@ -1,4 +1,4 @@
-import {isUsableGroup} from './vk-data.js?v=11.15';
+import {isUsableGroup} from './vk-data.js?v=11.16';
 
 export function errorText(error, secret = '') {
   const data = error?.error_data || error?.error || error?.data || error;
@@ -19,7 +19,9 @@ export function deadline(promise, ms, message) {
 }
 
 export function isVkHost(win = window) {
-  return win.parent !== win || Boolean(win.AndroidBridge || win.webkit?.messageHandlers?.VKWebAppClose || win.webkit?.messageHandlers?.VKWebAppInit || win.ReactNativeWebView);
+  const host = String(win.location?.hostname || '').toLowerCase();
+  const query = new URLSearchParams(win.location?.search || '');
+  return win.parent !== win || Boolean(win.vkBridge || win.AndroidBridge || win.webkit?.messageHandlers?.VKWebAppClose || win.webkit?.messageHandlers?.VKWebAppInit || win.ReactNativeWebView) || /(^|\.)vk\.ru$/.test(host) || Boolean(query.get('vk_app_id') || query.get('vk_platform') || query.get('vk_user_id'));
 }
 
 // Host initialization is separate from user authorization and must happen at launch.
@@ -74,10 +76,25 @@ export class VkConnection {
   async performConnect(appId, launchId) {
     let candidate = '';
     try {
-      if (!Number.isSafeInteger(appId) || appId <= 0) throw Error('Укажите ID Mini App, открытого внутри VK.');
-      if (launchId && launchId !== appId) throw Error(`VK запустил приложение ${launchId}, а в настройках указано ${appId}.`);
+      const suppliedAppId = Number(appId);
+      if (Number.isSafeInteger(suppliedAppId) && suppliedAppId > 0 && launchId && Number(launchId) !== suppliedAppId) throw Error(`VK запустил приложение ${launchId}, а в настройках указано ${suppliedAppId}.`);
       this.set('connecting', '1/4 · Проверяем запуск внутри VK…');
       this.bridge = await deadline(this.getBridge(), this.timeout, 'Нет ответа VK Bridge. Откройте приложение внутри VK и повторите подключение.');
+      let resolvedAppId = suppliedAppId;
+      let bridgeLaunchId = 0;
+      if (!(Number.isSafeInteger(resolvedAppId) && resolvedAppId > 0)) {
+        try {
+          const launch = await deadline(this.bridge.send('VKWebAppGetLaunchParams'), 10000, 'VK не вернул параметры запуска.');
+          const params = launch?.params || launch || {};
+          bridgeLaunchId = Number(params.vk_app_id || params.app_id || 0);
+        } catch {}
+      }
+      const queryLaunchId = Number(new URLSearchParams(globalThis.location?.search || '').get('vk_app_id') || 0);
+      resolvedAppId = Number.isSafeInteger(resolvedAppId) && resolvedAppId > 0 ? resolvedAppId : (bridgeLaunchId || Number(launchId) || queryLaunchId);
+      const actualLaunchId = bridgeLaunchId || Number(launchId) || queryLaunchId;
+      if (!Number.isSafeInteger(resolvedAppId) || resolvedAppId <= 0) throw Error('VK не передал ID Mini App. Откройте приложение через кнопку «Запустить» в VK.');
+      if (actualLaunchId && actualLaunchId !== resolvedAppId) throw Error(`VK запустил приложение ${actualLaunchId}, а в настройках указано ${resolvedAppId}.`);
+      appId = resolvedAppId;
       this.set('authorizing', '2/4 · Ожидаем разрешение VK. Подтвердите доступ в окне VK (до 60 секунд).');
       const result = await deadline(this.bridge.send('VKWebAppGetAuthToken', {app_id:appId, scope:'groups,wall'}), this.authTimeout, 'VK не выдал разрешение за 60 секунд. Закройте лишние окна авторизации и повторите.');
       if (!result?.access_token) throw Error('VK не выдал токен доступа. Подключение не выполнено.');

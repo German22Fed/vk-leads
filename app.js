@@ -1,8 +1,8 @@
-import {VkConnection} from './vk-connection.js?v=11.15';
-import {getBridge} from './vk-start.js?v=11.15';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.15';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.15';
-import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.15';
+import {VkConnection} from './vk-connection.js?v=11.16';
+import {getBridge} from './vk-start.js?v=11.16';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.16';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.16';
+import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.16';
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
 const date=n=>new Date(n).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})+' МСК';
@@ -92,7 +92,7 @@ function settingsModal(){
  modal('Подключение VK',`<div id="authState" class="modalnote" role="status"></div><p id="authStatus" aria-live="polite"></p><p>Нажмите кнопку ниже и подтвердите разрешение в окне VK. Поиск и открытие диалога выполняются только после вашего действия. Сервисный ключ здесь не нужен.</p><label for="appId">ID Mini App (если открыто не из VK)</label><input class="field" id="appId" inputmode="numeric" value="${appId||''}" placeholder="Подставится при запуске внутри VK"><div class="modalrow"><button id="connectVK" class="primary">Подключить через VK</button><button id="liveMode" class="secondary">Закрыть</button></div><p style="margin-top:16px">${appLink}</p><p class="modalnote">Вход действует до перезагрузки страницы. Статус всегда виден над лентой. Локальный сборщик — отдельная функция для компьютера; для поиска внутри VK он не требуется.</p>`);
  renderConnection();
  $('connectVK').onclick=async()=>{
-  const id=Number($('appId').value);settings.appId=id;write('radar.settings',settings);
+  const id=Number($('appId').value)||0;if(id>0){settings.appId=id;write('radar.settings',settings);}
   try{await auth.connect(id,Number(new URLSearchParams(location.search).get('vk_app_id')));mode='live';render();}catch{renderConnection();}
  };
  $('liveMode').onclick=()=>{$('modal').close();};
