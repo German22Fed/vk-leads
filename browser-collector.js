@@ -1,7 +1,7 @@
-import {Collector, initialState} from './collector-engine.js?v=11.26';
+import {Collector, initialState} from './collector-engine.js?v=11.27';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.26';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.26';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.27';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.27';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
 export const AUTO_QUERIES=['ресницы','брови','маникюр','салон красоты','парикмахерская','психолог','психология','мебель на заказ','кухни на заказ','диваны','ремонт квартир','магазин','клиника','стоматология','кафе','фотограф','студия'];
@@ -115,7 +115,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     if(freshBusy||collector.busy||collector.running||wanted||autoBusy)return;
     if(!isConnected()){onConnect();$('freshStatus').textContent='Подключите VK, затем повторите поиск свежих групп.';return;}
     stopAuto();if(!more)onFreshStart?.();freshBusy=true;freshAbort=new AbortController();
-      freshReport={version:'11.26',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
+      freshReport={version:'11.27',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
     const signal=freshAbort.signal,progress=s=>{$('freshStatus').textContent=s;};
     try{
       if(!more){
@@ -186,7 +186,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     }
     render();
   },1000);
-  const chooseLeadPeriod=period=>{ $('period').value=period; $('dateBasis').value='appeared'; onShowCandidates?.(period); document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.classList.toggle('selected',b.dataset.period===period)); };
+  const chooseLeadPeriod=period=>{ $('period').value=period; document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.classList.toggle('selected',b.dataset.period===period)); };
   $('leadPeriod1').dataset.period='1h';$('leadPeriod13').dataset.period='1-3h';$('leadPeriodToday').dataset.period='today';
   document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.onclick=()=>chooseLeadPeriod(b.dataset.period));
   $('leadConnect').onclick=()=>onConnect?.();
@@ -206,6 +206,13 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     try{
       const period=document.querySelector('.leadPeriodButtons .selected')?.dataset.period||'today';chooseLeadPeriod(period);
       if(!isConnected()){onConnect?.();throw Error('Подключите VK и повторите поиск.');}
+      // A previous search starts the one-minute observer. Stop that cycle so
+      // the next click can create a new fresh-ID snapshot instead of being
+      // ignored while the old cycle is still running.
+      if(collector.running||wanted){wanted=false;collector.stop();}
+      const waitUntil=Date.now()+15000;
+      while(collector.busy&&Date.now()<waitUntil)await new Promise(resolve=>setTimeout(resolve,100));
+      if(collector.busy)throw Error('Предыдущая проверка VK ещё завершается. Повторите через несколько секунд.');
       $('leadStatus').textContent='Ищем верхнюю границу VK и проверяем самые свежие ID…';
       // groups.search is relevance-ranked and returns old popular groups.
       // Fresh-period buttons always use the current ID snapshot instead.
