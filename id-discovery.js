@@ -1,4 +1,4 @@
-import {groupRows,isIncompleteGroup,isDeletedMarker,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.24';
+import {groupRows,isIncompleteGroup,isDeletedMarker,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.25';
 import {normalizeGroup} from './core.js';
 
 const MAX_ID = 2147479999;
@@ -24,7 +24,10 @@ export async function findIdFrontier({api, signal, onProgress=()=>{}, onProbe=()
     // Use readable/deactivated rows for this approximate search only. Observation
     // history handles partial rows separately and never counts them as missing.
     const incompleteIds=rows.filter(isIncompleteGroup).map(g=>g.id);
-    const found=rows.filter(g=>g.id!==1&&isClientFitGroup(g));
+    // Estimate the global frontier from every usable public row. Filtering by
+    // niche here can anchor the search on an old commercial group while newer
+    // unrelated communities are ignored.
+    const found=rows.filter(g=>g.id!==1&&isUsableGroup(g));
     if (found.length) highest=Math.max(highest,...found.map(g=>g.id));
     lastObservedAt=Date.now();
     onProbe({request:requests,from:start,to:end,returned:found.length,incompleteIds,highestReturned:found.length?Math.max(...found.map(g=>g.id)):null,at:lastObservedAt});

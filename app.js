@@ -1,8 +1,8 @@
-import {VkConnection} from './vk-connection.js?v=11.24';
-import {getBridge} from './vk-start.js?v=11.24';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.24';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.24';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.24';
+import {VkConnection} from './vk-connection.js?v=11.25';
+import {getBridge} from './vk-start.js?v=11.25';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.25';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.25';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.25';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -13,6 +13,7 @@ const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fa
 function write(key,data){try{localStorage.setItem(key,JSON.stringify(data));return true;}catch{toast('Не удалось сохранить данные в браузере. Сделайте экспорт базы.');return false;}}
 let settings=read('radar.settings',{}), template=read('radar.template',DEFAULT_TEMPLATE);
 const isVerifiedGroup=g=>isLeadFitGroup(g)&&Number.isFinite(g?.verifiedAt);
+const isFreshLead=g=>isVerifiedGroup(g)&&Number.isFinite(g?.members)&&g.members<=5000&&(g.posts===null||g.posts<=20);
 let live=read('radar.live',[]);if(!Array.isArray(live))live=[];live=live.filter(g=>isVerifiedGroup(g));
 const demo=[];
 let serverConnected=false;
@@ -195,7 +196,7 @@ initCollector(s=>{serverConnected=s.connected;if(freshFilter&&freshObservationSt
  api,isConnected:()=>auth.connected,onConnect:settingsModal,onSearch:searchModal,
  onFreshStart:()=>{freshSessionIds=new Set();freshObservationStartedAt=Date.now();freshFilter=true;mode='live';render();},
  onAutoGroups:groups=>{const filtered=groups.filter(isVerifiedGroup),before=new Set(live.map(g=>g.id));live=mergeGroups(live,filtered);mode='live';freshFilter=false;if(filtered.length){snapshotMode=true;$('dateBasis').value='discovered';autoFeedShown=true;}persist();render();toast(`Проверка VK: ${filtered.filter(g=>!before.has(g.id)).length} новых подходящих карточек добавлено в ленту.`);},
- onFreshGroups:groups=>{const filtered=groups.filter(isVerifiedGroup);filtered.forEach(g=>freshSessionIds.add(g.id));live=mergeGroups(live,filtered);mode='live';view='discover';freshFilter=true;snapshotMode=true;$('dateBasis').value='id';$('sort').value='id';document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));persist();render();$('feedStatus').textContent='Новый снимок VK: повторы скрыты. В ленте оставлены только подходящие коммерческие названия.';},
+ onFreshGroups:groups=>{const filtered=groups.filter(isFreshLead);filtered.forEach(g=>freshSessionIds.add(g.id));live=mergeGroups(live,filtered);mode='live';view='discover';freshFilter=true;snapshotMode=true;$('dateBasis').value='id';$('sort').value='id';document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));persist();render();$('feedStatus').textContent='Свежий снимок VK: повторы скрыты, крупные старые сообщества исключены.';},
  onRegisterAutoStart:fn=>{startAutoSearch=fn;if(auth.connected)fn();},
  onShowCandidates:(period='today')=>{view='discover';$('dateBasis').value='appeared';$('period').value=period;$('sort').value='new';$('filterQuery').value='';snapshotMode=false;for(const id of ['onlyNew','exact','canMessage'])$(id).checked=false;document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));render();$('recentTitle').scrollIntoView({behavior:'smooth'});},
  onReset:()=>{live=live.map(g=>{if(g.source!=='Наблюдение Mini App')return g;const {observation,...rest}=g;return rest;});persist();render();}
