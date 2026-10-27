@@ -1,8 +1,8 @@
-import {VkConnection} from './vk-connection.js?v=11.19';
-import {getBridge} from './vk-start.js?v=11.19';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.19';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.19';
-import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.19';
+import {VkConnection} from './vk-connection.js?v=11.20';
+import {getBridge} from './vk-start.js?v=11.20';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.20';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.20';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.20';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -12,7 +12,7 @@ const auth = new VkConnection({getBridge,onChange:()=>renderConnection()});
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
 function write(key,data){try{localStorage.setItem(key,JSON.stringify(data));return true;}catch{toast('Не удалось сохранить данные в браузере. Сделайте экспорт базы.');return false;}}
 let settings=read('radar.settings',{}), template=read('radar.template',DEFAULT_TEMPLATE);
-const isVerifiedGroup=g=>isClientFitGroup(g)&&Number.isFinite(g?.verifiedAt);
+const isVerifiedGroup=g=>isLeadFitGroup(g)&&Number.isFinite(g?.verifiedAt);
 let live=read('radar.live',[]);if(!Array.isArray(live))live=[];live=live.filter(g=>isVerifiedGroup(g));
 const demo=[];
 let serverConnected=false;
@@ -108,16 +108,22 @@ async function api(method,params){
 function searchModal(){
  const saved=settings.leadFilters||{};
  const presets={
-  all:'цветы, пекарня, маникюр, ремонт, мебель, фитнес, детская студия, кафе',
-  fashion:'одежда, магазин одежды, обувь, аксессуары, шоурум',
-  beauty:'салон красоты, парикмахерская, косметология, маникюр, брови',
-  food:'кафе, ресторан, пекарня, кондитерская, доставка еды',
-  services:'ремонт, студия, агентство, школа, мастерская, услуги'
+  all:'салон красоты парикмахерская косметология маникюр брови массаж\nмебель кухни шкафы интерьер дизайн декор шторы\nремонт строительство монтаж электрика сантехника окна двери клининг\nпсихолог психотерапевт коуч консультант юрист бухгалтер риэлтор\nмагазин одежда обувь аксессуары цветы подарки техника шоурум\nкафе ресторан пекарня кондитерская доставка еды кофе бар\nфитнес спорт йога танцы студия бассейн туризм отель фотограф\nклиника стоматология врач здоровье ветеринар аптека\nагентство студия школа курсы детский центр услуги мастерская',
+  fashion:'одежда магазин одежды обувь аксессуары сумки шоурум бутик ювелир',
+  beauty:'салон красоты парикмахерская барбершоп косметология маникюр брови массаж',
+  food:'кафе ресторан бар пекарня кондитерская доставка еды кофе суши пицца',
+  services:'ремонт строительство агентство студия школа мастерская услуги клининг монтаж',
+  experts:'психолог психотерапевт коуч юрист бухгалтер риэлтор консультант тренер эксперт',
+  home:'мебель кухни шкафы интерьер дизайн ремонт окна двери шторы декор',
+  health:'клиника стоматология врач здоровье фитнес йога массаж ветеринар',
+  events:'фотограф фотостудия видеограф свадьба ведущий праздник туризм отель',
+  local:'магазин цветы подарки автосервис автомойка такси прокат доставка'
  };
+ const defaultMinus='казино, ставки, букмекер, крипто, форекс, инвестиции, накрутка, подписчики, бот, парсер, игра, гейминг, киберспорт, аниме, мемы, новости, политика, знакомства, 18+, эротика, vpn, торрент';
  modal('Поиск клиентов для дизайна',`<p class="modalintro">Подбираем реальные публичные сообщества через VK API. Вы сами выбираете направление, оцениваете карточку и вручную решаете, открывать ли диалог.</p>
- <label for="leadDirection">Направление</label><select class="statusselect" id="leadDirection"><option value="all">Все направления</option><option value="fashion">Одежда и обувь</option><option value="beauty">Красота и здоровье</option><option value="food">Еда и заведения</option><option value="services">Услуги и локальный бизнес</option><option value="custom">Свои ключевые слова</option></select>
+ <label for="leadDirection">Направление</label><select class="statusselect" id="leadDirection"><option value="all">Все направления — расширенный каталог</option><option value="fashion">Одежда и обувь</option><option value="beauty">Красота и здоровье</option><option value="food">Еда и заведения</option><option value="services">Услуги и локальный бизнес</option><option value="experts">Эксперты и личные бренды</option><option value="home">Дом, мебель и ремонт</option><option value="health">Здоровье и спорт</option><option value="events">Фото, события и туризм</option><option value="local">Магазины и локальные услуги</option><option value="custom">Свои ключевые слова</option></select>
  <label for="searchQuery">Ключевые слова в названии сообщества</label><textarea class="field" id="searchQuery" rows="4" placeholder="по одному слову или фразе на строку">${esc(saved.query||presets.all)}</textarea>
- <label for="searchMinus">Исключить слова и фразы</label><textarea class="field" id="searchMinus" rows="2" placeholder="казино, ставки, крипто, 18+">${esc(saved.minus||'')}</textarea>
+ <label for="searchMinus">Исключить слова и фразы</label><textarea class="field" id="searchMinus" rows="3" placeholder="казино, ставки, крипто, 18+">${esc(saved.minus||defaultMinus)}</textarea>
  <div class="leadgrid"><label>Подписчиков от<input class="field" id="membersMin" type="number" min="0" value="${esc(saved.membersMin??10)}"></label><label>до<input class="field" id="membersMax" type="number" min="0" value="${esc(saved.membersMax??2000)}"></label><label>Публикаций от<input class="field" id="postsMin" type="number" min="0" value="${esc(saved.postsMin??0)}"></label><label>до<input class="field" id="postsMax" type="number" min="0" value="${esc(saved.postsMax??3)}"></label><label>Город или регион<input class="field" id="regionQuery" placeholder="например, Москва" value="${esc(saved.region||'')}"></label><label>Последний пост не старше, дней<input class="field" id="lastPostDays" type="number" min="0" value="${esc(saved.lastPostDays??0)}"></label><label>Результатов<select class="statusselect" id="searchLimit"><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></label></div>
  <label class="checkline"><input type="checkbox" id="onlyRecent" ${saved.recentHours?'checked':''}> Только впервые найденные за последние 24 часа</label>
  <label class="checkline"><input type="checkbox" id="onlyOpportunities" ${saved.opportunities!==false?'checked':''}> Приоритет: до 3 публикаций или отсутствует обложка/аватарка</label>
@@ -131,10 +137,11 @@ function searchModal(){
 }
  $('searchBtn').onclick=searchModal;
 function progress(s){$('feedStatus').textContent=s;if($('searchStatus'))$('searchStatus').textContent=s;}
-async function enrich(ids){let collected=[],failed=0;const raw=await api('groups.getById',{group_ids:ids.join(','),fields:'name,screen_name,members_count,city,activity,description,has_photo,cover,can_message,deactivated'});const rows=groupRows(raw,ids,{allowIncomplete:true});for(const g of rows){if(runCancelled)break;if(!isClientFitGroup(g))continue;let wall;try{wall=await api('wall.get',{owner_id:-g.id,count:5,filter:'all'});}catch(e){if(!(auth.connected||serverConnected))throw e;failed++;}collected.push({...normalizeGroup(g,wall),verifiedAt:Date.now(),verification:'groups.getById'});progress(`Проверено ${collected.length} из ${rows.length}. Недоступных стен: ${failed}.`);}return {collected,failed};}
+async function enrich(ids){let collected=[],failed=0;const raw=await api('groups.getById',{group_ids:ids.join(','),fields:'name,screen_name,members_count,city,activity,description,has_photo,cover,can_message,deactivated'});const rows=groupRows(raw,ids,{allowIncomplete:true});for(const g of rows){if(runCancelled)break;if(!isLeadFitGroup(g))continue;let wall;try{wall=await api('wall.get',{owner_id:-g.id,count:5,filter:'all'});}catch(e){if(!(auth.connected||serverConnected))throw e;failed++;}collected.push({...normalizeGroup(g,wall),verifiedAt:Date.now(),verification:'groups.getById'});progress(`Проверено ${collected.length} из ${rows.length}. Недоступных стен: ${failed}.`);}return {collected,failed};}
 function leadTerms(value){return String(value||'').split(/[\n,;]+/).map(s=>s.trim().toLowerCase()).filter(Boolean);}
 function leadFit(g,options){
  const hay=`${g.name||''} ${g.category||''} ${g.description||''} ${g.city||''}`.toLowerCase();
+ if(!isLeadFitGroup(g))return false;
  if(leadTerms(options.minus).some(term=>hay.includes(term)))return false;
  if(options.region&&!(g.city||'').toLowerCase().includes(options.region.toLowerCase()))return false;
  if(Number.isFinite(options.membersMin)&&options.membersMin>0&&(g.members===null||g.members<options.membersMin))return false;
