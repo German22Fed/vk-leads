@@ -1,4 +1,4 @@
-import {groupRows,isIncompleteGroup,isDeletedMarker,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.17';
+import {groupRows,isIncompleteGroup,isDeletedMarker,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.18';
 import {normalizeGroup} from './core.js';
 
 const MAX_ID = 2147479999;
