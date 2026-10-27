@@ -1,8 +1,8 @@
-import {VkConnection} from './vk-connection.js?v=11.11';
-import {getBridge} from './vk-start.js?v=11.11';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.11';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.11';
-import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.11';
+import {VkConnection} from './vk-connection.js?v=11.13';
+import {getBridge} from './vk-start.js?v=11.13';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.13';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.13';
+import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.13';
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
 const date=n=>new Date(n).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})+' МСК';
@@ -95,16 +95,47 @@ async function api(method,params){
  if(serverConnected)return (await collectorRequest('vk',{method,params})).response;
  throw Error('Нет подключения к VK. Нажмите «Подключение VK» над лентой.');
 }
-function searchModal(){modal('Найти сообщества',`<p>Укажите несколько тематик через запятую. Результаты объединяются без дублей. Поиск охватывает доступную выдачу ВК, но не подтверждает дату создания.</p><label for="searchQuery">Тематики через запятую</label><input class="field" id="searchQuery" placeholder="Цветы, пекарня, маникюр, ремонт, мебель" value="${esc(settings.query||'')}"><button class="secondary" id="broadTopics">Подставить 8 разных тематик</button><label for="searchLimit" style="display:block;margin-top:15px">Общий лимит результатов по всем тематикам</label><select id="searchLimit" class="statusselect"><option value="20">20 сообществ</option><option value="50">50 сообществ</option><option value="100">До 100 результатов</option><option value="300">До 300 результатов</option><option value="1000">До 1 000 результатов</option></select><label><input type="checkbox" id="autoSearch" ${autoTimer?'checked':''}> Повторять каждые 5 минут, пока открыто приложение</label><div class="modalrow"><button class="primary" id="runSearch" ${busy?'disabled':''}>Запустить поиск</button><button class="secondary" id="stopSearch">Остановить</button></div><p id="searchStatus" style="margin-top:15px" aria-live="polite">${mode==='demo'?'Для настоящего поиска подключите ВК. Демо-данные не добавляются в живую базу.':''}</p>`);
- $('broadTopics').onclick=()=>{$('searchQuery').value='цветы, пекарня, маникюр, ремонт, мебель, фитнес, детская студия, кафе';};
- $('runSearch').onclick=async()=>{if(!(auth.connected||serverConnected)){settings.query=$('searchQuery').value.trim();write('radar.settings',settings);return settingsModal();}const query=$('searchQuery').value.trim();if(!query)return toast('Укажите запрос.');const limit=Number($('searchLimit').value);try{searchPlan(query,limit);}catch(e){return toast(e.message);}settings.query=query;write('radar.settings',settings);clearInterval(autoTimer);autoTimer=null;const auto=$('autoSearch').checked;if(auto)autoTimer=setInterval(()=>{if(!busy&&(auth.connected||serverConnected)&&!document.hidden)search(query,limit);},300000);await search(query,limit);};
- $('stopSearch').onclick=()=>{runCancelled=true;clearInterval(autoTimer);autoTimer=null;$('autoSearch').checked=false;progress('Поиск остановится после текущего запроса.');};
- $('autoSearch').onchange=e=>{if(!e.target.checked){clearInterval(autoTimer);autoTimer=null;}};
+function searchModal(){
+ const saved=settings.leadFilters||{};
+ const presets={
+  all:'цветы, пекарня, маникюр, ремонт, мебель, фитнес, детская студия, кафе',
+  fashion:'одежда, магазин одежды, обувь, аксессуары, шоурум',
+  beauty:'салон красоты, парикмахерская, косметология, маникюр, брови',
+  food:'кафе, ресторан, пекарня, кондитерская, доставка еды',
+  services:'ремонт, студия, агентство, школа, мастерская, услуги'
+ };
+ modal('Поиск клиентов для дизайна',`<p class="modalintro">Подбираем реальные публичные сообщества через VK API. Вы сами выбираете направление, оцениваете карточку и вручную решаете, открывать ли диалог.</p>
+ <label for="leadDirection">Направление</label><select class="statusselect" id="leadDirection"><option value="all">Все направления</option><option value="fashion">Одежда и обувь</option><option value="beauty">Красота и здоровье</option><option value="food">Еда и заведения</option><option value="services">Услуги и локальный бизнес</option><option value="custom">Свои ключевые слова</option></select>
+ <label for="searchQuery">Ключевые слова в названии сообщества</label><textarea class="field" id="searchQuery" rows="4" placeholder="по одному слову или фразе на строку">${esc(saved.query||presets.all)}</textarea>
+ <label for="searchMinus">Исключить слова и фразы</label><textarea class="field" id="searchMinus" rows="2" placeholder="казино, ставки, крипто, 18+">${esc(saved.minus||'')}</textarea>
+ <div class="leadgrid"><label>Подписчиков от<input class="field" id="membersMin" type="number" min="0" value="${esc(saved.membersMin??10)}"></label><label>до<input class="field" id="membersMax" type="number" min="0" value="${esc(saved.membersMax??2000)}"></label><label>Публикаций от<input class="field" id="postsMin" type="number" min="0" value="${esc(saved.postsMin??0)}"></label><label>до<input class="field" id="postsMax" type="number" min="0" value="${esc(saved.postsMax??3)}"></label><label>Город или регион<input class="field" id="regionQuery" placeholder="например, Москва" value="${esc(saved.region||'')}"></label><label>Последний пост не старше, дней<input class="field" id="lastPostDays" type="number" min="0" value="${esc(saved.lastPostDays??0)}"></label><label>Результатов<select class="statusselect" id="searchLimit"><option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="200">200</option></select></label></div>
+ <label class="checkline"><input type="checkbox" id="onlyRecent" ${saved.recentHours?'checked':''}> Только впервые найденные за последние 24 часа</label>
+ <label class="checkline"><input type="checkbox" id="onlyOpportunities" ${saved.opportunities!==false?'checked':''}> Приоритет: до 3 публикаций или отсутствует обложка/аватарка</label>
+ <p class="modalnote">«Впервые найдено» — время обнаружения в вашей базе. VK не передаёт универсальную точную дату создания сообщества. Автоматические фоновые запросы отключены.</p>
+ <div class="modalrow"><button class="primary" id="runSearch" ${busy?'disabled':''}>Запустить поиск</button><button class="secondary" id="stopSearch">Остановить</button></div><p id="searchStatus" style="margin-top:15px" aria-live="polite"></p>`);
+ $('leadDirection').value=saved.direction||'all';
+ $('searchLimit').value=String(saved.limit||50);
+ $('leadDirection').onchange=e=>{if(e.target.value!=='custom')$('searchQuery').value=presets[e.target.value];};
+ $('runSearch').onclick=async()=>{if(!(auth.connected||serverConnected)){return settingsModal();}const query=$('searchQuery').value.trim();if(!query)return toast('Добавьте хотя бы одно ключевое слово.');const options={minus:$('searchMinus').value,region:$('regionQuery').value,membersMin:Number($('membersMin').value||0),membersMax:Number($('membersMax').value||0),postsMin:Number($('postsMin').value||0),postsMax:Number($('postsMax').value||0),lastPostDays:Number($('lastPostDays').value||0),recentHours:$('onlyRecent').checked?24:0,opportunities:$('onlyOpportunities').checked};const limit=Number($('searchLimit').value);try{searchPlan(query,limit);}catch(e){return toast(e.message);}settings.query=query;settings.leadFilters={...options,direction:$('leadDirection').value,limit};write('radar.settings',settings);await search(query,limit,options);};
+ $('stopSearch').onclick=()=>{runCancelled=true;progress('Поиск остановится после текущего запроса.');};
 }
-$('searchBtn').onclick=()=>{const button=$('freshStart')||$('collectorAutoSeed');if(button)button.click();else searchModal();};
+ $('searchBtn').onclick=searchModal;
 function progress(s){$('feedStatus').textContent=s;if($('searchStatus'))$('searchStatus').textContent=s;}
 async function enrich(ids){let collected=[],failed=0;const raw=await api('groups.getById',{group_ids:ids.join(','),fields:'name,screen_name,members_count,city,activity,description,has_photo,cover,can_message,deactivated'});const rows=groupRows(raw,ids,{allowIncomplete:true});for(const g of rows){if(runCancelled)break;if(!isClientFitGroup(g))continue;let wall;try{wall=await api('wall.get',{owner_id:-g.id,count:5,filter:'all'});}catch(e){if(!(auth.connected||serverConnected))throw e;failed++;}collected.push({...normalizeGroup(g,wall),verifiedAt:Date.now(),verification:'groups.getById'});progress(`Проверено ${collected.length} из ${rows.length}. Недоступных стен: ${failed}.`);}return {collected,failed};}
-async function search(query,limit){
+function leadTerms(value){return String(value||'').split(/[\n,;]+/).map(s=>s.trim().toLowerCase()).filter(Boolean);}
+function leadFit(g,options){
+ const hay=`${g.name||''} ${g.category||''} ${g.description||''} ${g.city||''}`.toLowerCase();
+ if(leadTerms(options.minus).some(term=>hay.includes(term)))return false;
+ if(options.region&&!(g.city||'').toLowerCase().includes(options.region.toLowerCase()))return false;
+ if(Number.isFinite(options.membersMin)&&options.membersMin>0&&(g.members===null||g.members<options.membersMin))return false;
+ if(Number.isFinite(options.membersMax)&&options.membersMax>0&&(g.members===null||g.members>options.membersMax))return false;
+ if(Number.isFinite(options.postsMin)&&g.posts!==null&&g.posts<options.postsMin)return false;
+ if(Number.isFinite(options.postsMax)&&options.postsMax>0&&(g.posts===null||g.posts>options.postsMax))return false;
+ if(Number.isFinite(options.lastPostDays)&&options.lastPostDays>0&&(g.latestPost===null||Date.now()-g.latestPost*1000>options.lastPostDays*86400000))return false;
+ if(options.opportunities&&!(g.posts!==null&&g.posts<=3||g.avatar===false||g.cover===false))return false;
+ return true;
+}
+async function search(query,limit,options={}){
  if(busy)return;busy=true;runCancelled=false;
  if($('runSearch'))$('runSearch').disabled=true;$('searchBtn').disabled=true;
  let processed=0,newCount=0,failed=0;
@@ -123,6 +154,8 @@ async function search(query,limit){
   const ids=[...unique], before=new Set(live.map(g=>g.id));
   for(let offset=0;offset<ids.length&&!runCancelled;offset+=100){
    const result=await enrich(ids.slice(offset,offset+100));
+   const now=Date.now();
+   result.collected=result.collected.map(g=>({...g,firstSeen:g.firstSeen||now})).filter(g=>leadFit(g,options)&&(!options.recentHours||now-(g.firstSeen||now)<=options.recentHours*3600000));
    failed+=result.failed;processed+=result.collected.length;
    newCount+=result.collected.filter(g=>!before.has(g.id)).length;
    live=mergeGroups(live,result.collected);persist();render();

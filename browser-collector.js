@@ -1,7 +1,7 @@
-import {Collector, initialState} from './collector-engine.js?v=11.11';
+import {Collector, initialState} from './collector-engine.js?v=11.13';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.11';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.11';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.13';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.13';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
 export const AUTO_QUERIES=['цветы','пекарня','маникюр','ремонт','мебель','фитнес','кафе','услуги'];
@@ -110,7 +110,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     if(freshBusy||collector.busy||collector.running||wanted||autoBusy)return;
     if(!isConnected()){onConnect();$('freshStatus').textContent='Подключите VK, затем повторите поиск свежих групп.';return;}
     stopAuto();if(!more)onFreshStart?.();freshBusy=true;freshAbort=new AbortController();
-    freshReport={version:'11.11',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
+    freshReport={version:'11.13',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
     const signal=freshAbort.signal,progress=s=>{$('freshStatus').textContent=s;};
     try{
       if(!more){
