@@ -1,8 +1,8 @@
-import {VkConnection} from './vk-connection.js?v=11.16';
-import {getBridge} from './vk-start.js?v=11.16';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.16';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.16';
-import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.16';
+import {VkConnection} from './vk-connection.js?v=11.17';
+import {getBridge} from './vk-start.js?v=11.17';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.17';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.17';
+import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.17';
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
 const date=n=>new Date(n).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})+' МСК';

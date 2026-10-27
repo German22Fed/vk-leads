@@ -1,4 +1,4 @@
-import {isUsableGroup} from './vk-data.js?v=11.16';
+import {isUsableGroup} from './vk-data.js?v=11.17';
 
 export function errorText(error, secret = '') {
   const data = error?.error_data || error?.error || error?.data || error;
@@ -20,8 +20,9 @@ export function deadline(promise, ms, message) {
 
 export function isVkHost(win = window) {
   const host = String(win.location?.hostname || '').toLowerCase();
+  const ua = String(win.navigator?.userAgent || '').toLowerCase();
   const query = new URLSearchParams(win.location?.search || '');
-  return win.parent !== win || Boolean(win.vkBridge || win.AndroidBridge || win.webkit?.messageHandlers?.VKWebAppClose || win.webkit?.messageHandlers?.VKWebAppInit || win.ReactNativeWebView) || /(^|\.)vk\.ru$/.test(host) || Boolean(query.get('vk_app_id') || query.get('vk_platform') || query.get('vk_user_id'));
+  return win.parent !== win || Boolean(win.vkBridge || win.AndroidBridge || win.webkit?.messageHandlers?.VKWebAppClose || win.webkit?.messageHandlers?.VKWebAppInit || win.ReactNativeWebView) || /(^|\.)vk\.(ru|com)$/.test(host) || /vk(?:androidapp|[_-]ios|webapp)/.test(ua) || Boolean(query.get('vk_app_id') || query.get('vk_platform') || query.get('vk_user_id'));
 }
 
 // Host initialization is separate from user authorization and must happen at launch.
