@@ -1,5 +1,5 @@
-import {initBrowserCollector} from './browser-collector.js?v=11.22';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.22';
+import {initBrowserCollector} from './browser-collector.js?v=11.23';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.23';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const when = n => n ? new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК' : '—';
@@ -21,6 +21,12 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
     return;
   }
   $('collectorPanel').innerHTML = `
+    <div class="leadFinder"><div class="sectionheading"><div><h2>Новые сообщества для дизайна</h2><p>Показываем только подходящие коммерческие названия из VK.</p></div><span id="collectorBadge">Проверяю сервер…</span></div>
+    <p class="collectorHint">Выберите период появления и нажмите одну кнопку. Система проверит VK и оставит только салоны, магазины, услуги, мебель, экспертов и другие коммерческие направления.</p>
+    <div class="leadPeriodButtons" role="group" aria-label="Период появления"><button class="secondary" id="leadPeriod1">Появились за последний час</button><button class="secondary" id="leadPeriod13">Появились за 1–3 часа</button><button class="secondary" id="leadPeriodToday">Появились сегодня</button></div>
+    <div class="modalrow"><button id="leadFind" class="primary">Найти подходящие сообщества</button><button id="leadConnect" class="secondary">Подключить VK</button></div>
+    <p id="leadStatus" role="status" aria-live="polite">Проверяем доступность локального поиска…</p></div>
+    <div id="collectorLegacy" hidden>
     <div class="sectionheading"><div><h2>Сборщик новых ID <span>Эксперимент</span></h2><p>Реальные запросы ВК и история проверок на вашем компьютере.</p></div><span id="collectorBadge">Проверяю сервер…</span></div>
     <p id="collectorStatus" role="status">Подключение к локальному сборщику…</p>
     <div class="collectorStats"><span>Проверено ID <b id="collectorChecked">0</b></span><span>Кандидатов за сегодня <b id="collectorCandidates">0</b></span><span>Найдены старые посты <b id="collectorOlder">0</b></span><span>Завершено циклов <b id="collectorCycles">0</b></span></div>
@@ -38,7 +44,7 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
     <details><summary>Как проверяем, действительно ли сообщество новое</summary><p>Кандидат — ID, который не вернулся минимум в двух успешных проверках, а затем появился. Недоступность не доказывает, что сообщества не существовало. Для «сегодня» весь интервал наблюдения должен попадать в московские сутки. Старый пост опровергает создание сегодня; отсутствие старых постов его не подтверждает.</p>
     <p>Для контрольного опыта: начните сбор и дождитесь двух проверок. Затем самостоятельно создайте тестовое сообщество в ВК. Если его ID входит в проверявшийся диапазон, запишите здесь фактическое время создания. Это ручные контрольные данные, не официальный источник дат для остальных групп.</p>
     <div class="collectorGrid"><label>ID контрольной группы<input class="field" id="controlId" type="number" min="1"></label><label>Создана (МСК)<input class="field" id="controlAt" type="datetime-local"></label></div><label>Как подтверждено время<input class="field" id="controlNote" placeholder="Например, создал самостоятельно и записал время"></label><button class="secondary" id="controlSave">Сравнить с наблюдениями</button><div id="controlResults"></div></details>
-    <details><summary>Последние проверки</summary><div id="collectorRuns">Проверок ещё нет.</div></details>`;
+    <details><summary>Последние проверки</summary><div id="collectorRuns">Проверок ещё нет.</div></details></div>`;
   let first = true, polling = false, available = false, acting = false, frontierAbort=null;
   update = async () => {
     if (polling) return;
@@ -109,5 +115,19 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
   $('collectorStop').onclick=()=>action(()=>collectorRequest('stop',{}));
   $('controlSave').onclick=()=>action(()=>collectorRequest('control',{id:$('controlId').value,createdAt:$('controlAt').value?$('controlAt').value+':00+03:00':'',note:$('controlNote').value}));
   $('collectorExport').onclick=()=>action(async()=>{const data=await collectorRequest('export'),url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='vk-leads-observations.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+  let leadPeriod='today';
+  const chooseLeadPeriod=period=>{leadPeriod=period;$('period').value=period;browserOptions.onShowCandidates?.(period);document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.classList.toggle('selected',b.dataset.period===period));};
+  $('leadPeriod1').dataset.period='1h';$('leadPeriod13').dataset.period='1-3h';$('leadPeriodToday').dataset.period='today';
+  document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.onclick=()=>chooseLeadPeriod(b.dataset.period));
+  $('leadConnect').onclick=()=>browserOptions.onConnect?.();
+  $('leadFind').onclick=()=>action(async()=>{
+    if(!available)throw Error('Локальный сервер не подключён. Откройте Mini App внутри VK.');
+    const s=await collectorRequest('status');if(!s.connected)throw Error('Сначала подключите VK API в локальном режиме.');
+    const api=async(method,params)=>(await collectorRequest('vk',{method,params})).response;
+    const frontier=await findIdFrontier({api,onProgress:msg=>{$('leadStatus').textContent='Подготавливаем поиск…';}});
+    await collectorRequest('config',{startId:frontier.id+1,width:500,intervalSeconds:600,advance:true});
+    await collectorRequest('start',{});browserOptions.onShowCandidates?.(leadPeriod);$('leadStatus').textContent='Поиск запущен. Подходящие сообщества появятся после проверки VK.';
+  });
+  chooseLeadPeriod('today');
   void update(); setInterval(()=>{if(!document.hidden)void update();},4000);
 }
