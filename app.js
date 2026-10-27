@@ -1,8 +1,8 @@
-import {VkConnection} from './vk-connection.js?v=11.18';
-import {getBridge} from './vk-start.js?v=11.18';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.18';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.18';
-import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.18';
+import {VkConnection} from './vk-connection.js?v=11.19';
+import {getBridge} from './vk-start.js?v=11.19';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.19';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.19';
+import {groupRows,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.19';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
