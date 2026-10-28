@@ -1,9 +1,9 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.32';
-import {showPreparedMessage,copyPreparedText} from './message-flow.js?v=11.32';
-import {getBridge} from './vk-start.js?v=11.32';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.32';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.32';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.32';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.33';
+import {showPreparedMessage,copyPreparedText} from './message-flow.js?v=11.33';
+import {getBridge} from './vk-start.js?v=11.33';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.33';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.33';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.33';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -13,7 +13,7 @@ const auth = new VkConnection({getBridge,onChange:()=>renderConnection()});
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
 function write(key,data){try{localStorage.setItem(key,JSON.stringify(data));return true;}catch{toast('Не удалось сохранить данные в браузере. Сделайте экспорт базы.');return false;}}
 let settings=read('radar.settings',{}), template=read('radar.template',DEFAULT_TEMPLATE);
-if(read('radar.template.version','')!=='grm-studio-v1'){template=DEFAULT_TEMPLATE;write('radar.template',template);write('radar.template.version','grm-studio-v1');}
+if(read('radar.template.version','')!=='kg-design-v1'){template=DEFAULT_TEMPLATE;write('radar.template',template);write('radar.template.version','kg-design-v1');}
 const isVerifiedGroup=g=>isLeadFitGroup(g)&&Number.isFinite(g?.verifiedAt);
 const isFreshLead=g=>isVerifiedGroup(g)&&Number.isFinite(g?.members)&&g.members<=10000;
 let live=read('radar.live',[]);if(!Array.isArray(live))live=[];live=live.filter(g=>isVerifiedGroup(g));
@@ -130,7 +130,7 @@ async function prepareNativeMessage(g,text){
  finally{messagePending=false;if(button?.isConnected)button.disabled=!!g.demo;if(fallback?.isConnected)fallback.disabled=!!g.demo;}
 }
 function compose(g){
- modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="primary" id="copyDraft">Скопировать письмо</button><button class="secondary" id="openDialog" ${g.demo?'disabled':''}>Проверить и открыть с текстом ↗</button></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать письмо до открытия диалога.</p><label for="draft">Готовое сообщение GRM Studio</label><textarea id="draft" rows="18">${esc(messageFor(g,template))}</textarea><p id="messageStatus" role="status" aria-live="polite">Ссылка передаёт полный текст, но некоторые версии VK не подставляют его в поле сообщения. В этом случае используйте копирование. Сообщение отправляется после вашего подтверждения в VK.</p><div class="modalrow"><button class="secondary" id="prepareMessage" ${g.demo?'disabled':''}>Окно сообщения VK (если поддерживается)</button></div>${!g.demo?`<p style="margin-top:14px"><a id="draftLink" class="link" target="_blank" rel="noopener noreferrer" href="${esc(dialogUrl(g,messageFor(g,template)))}">Открыть с текстом ↗</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="${esc(dialogUrl(g,''))}">Открыть пустой диалог ↗</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p>`:''}<label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
+ modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="primary" id="copyDraft">Скопировать письмо</button><button class="secondary" id="openDialog" ${g.demo?'disabled':''}>Проверить и открыть с текстом ↗</button></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать письмо до открытия диалога.</p><label for="draft">Готовое сообщение KG Design</label><textarea id="draft" rows="18">${esc(messageFor(g,template))}</textarea><p id="messageStatus" role="status" aria-live="polite">Ссылка передаёт полный текст, но некоторые версии VK не подставляют его в поле сообщения. В этом случае используйте копирование. Сообщение отправляется после вашего подтверждения в VK.</p><div class="modalrow"><button class="secondary" id="prepareMessage" ${g.demo?'disabled':''}>Окно сообщения VK (если поддерживается)</button></div>${!g.demo?`<p style="margin-top:14px"><a id="draftLink" class="link" target="_blank" rel="noopener noreferrer" href="${esc(dialogUrl(g,messageFor(g,template)))}">Открыть с текстом ↗</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="${esc(dialogUrl(g,''))}">Открыть пустой диалог ↗</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p>`:''}<label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
  $('copyDraft').onclick=()=>void copyDraftText();
  $('draft').oninput=()=>{if($('draftLink'))$('draftLink').href=dialogUrl(g,$('draft').value);$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
  $('openDialog').onclick=()=>void openVerifiedDialog(g,$('draft').value);
