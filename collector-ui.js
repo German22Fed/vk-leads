@@ -1,5 +1,5 @@
-import {initBrowserCollector} from './browser-collector.js?v=11.31';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.31';
+import {initBrowserCollector} from './browser-collector.js?v=11.32';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.32';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const when = n => n ? new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК' : '—';

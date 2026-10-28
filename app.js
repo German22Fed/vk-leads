@@ -1,9 +1,9 @@
-import {VkConnection,errorText} from './vk-connection.js?v=11.31';
-import {showPreparedMessage} from './message-flow.js?v=11.31';
-import {getBridge} from './vk-start.js?v=11.31';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.31';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.31';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.31';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.32';
+import {showPreparedMessage,copyPreparedText} from './message-flow.js?v=11.32';
+import {getBridge} from './vk-start.js?v=11.32';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.32';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.32';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.32';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -65,10 +65,49 @@ $('readAll').onclick=()=>{const ids=new Set(filterGroups(groups(),filters()).map
 $('cards').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)return;const g=groups().find(x=>x.id===Number(b.closest('[data-id]').dataset.id));if(!g)return;
  if(b.dataset.action==='save'){g.saved=!g.saved;persist();render();return;}
  if(b.dataset.action==='hide'){g.status='hidden';persist();render();toast('Убрано из ленты. Вернуть можно в разделе «В работе».');return;}
- g.seen=true;persist();render();if(b.dataset.action==='message'){compose(g);void prepareNativeMessage(g,$('draft').value);}else details(g);
+ g.seen=true;persist();render();if(b.dataset.action==='message'){compose(g);}else details(g);
 };
 async function verifyGroup(g){if(g.demo)return {ok:false,reason:'Демо-сообщество нельзя открыть в VK.'};try{const raw=await api('groups.getById',{group_ids:String(g.id),fields:'name,screen_name,deactivated,can_message,has_photo,cover'});const rows=groupRows(raw,[g.id],{allowIncomplete:true});const row=rows.find(x=>x.id===g.id);if(!isUsableGroup(row)){live=live.filter(x=>x.id!==g.id);persist();render();return {ok:false,reason:'VK больше не возвращает это сообщество. Карточка удалена из выдачи.'};}Object.assign(g,{name:row.name,screenName:row.screen_name||g.screenName,canMessage:row.can_message===undefined?null:!!row.can_message,verifiedAt:Date.now(),verification:'groups.getById'});persist();render();if(g.canMessage===null)return {ok:false,reason:'VK не вернул доступность сообщений. Повторите проверку или откройте страницу сообщества.'};if(!g.canMessage)return {ok:false,reason:'Сообщество существует, но сообщения в нём закрыты.'};return {ok:true};}catch(e){return {ok:false,reason:'Не удалось подтвердить сообщество через VK: '+e.message};}}
-async function openVerifiedDialog(g,text){const wait=15000-(Date.now()-lastDialogOpenAt);if(wait>0){toast(`Подождите ${Math.ceil(wait/1000)} сек. перед следующим открытием диалога.`);return;}const check=await verifyGroup(g);if(!check.ok){toast(check.reason);return;}const long=text.length>1800;let copied=false;try{if(long&&navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(text);copied=true;}catch{}}const url=dialogUrl(g,long?'':text);lastDialogOpenAt=Date.now();if(auth.bridge?.send){try{await auth.bridge.send('VKWebAppOpenLink',{link:url});}catch{const w=window.open(url,'_blank');if(!w)throw Error('Браузер заблокировал окно.');w.opener=null;}}else{const w=window.open(url,'_blank');if(!w)throw Error('Браузер заблокировал окно.');w.opener=null;}if(g.status==='new')g.status='opened';persist();render();if(long)toast(copied?'Длинный текст GRM Studio скопирован. Вставьте его в открывшийся диалог VK.':'Диалог VK открыт. Скопируйте текст кнопкой «Скопировать текст» и вставьте его в диалог.');}catch(e){toast('Не удалось открыть диалог VK: '+String(e.message||e).slice(0,180));}}
+function messageNotice(text){const el=$('messageStatus');if(el)el.textContent=text;else toast(text);}
+async function openVerifiedDialog(g,text){
+ if(messagePending){messageNotice('Дождитесь ответа VK.');return;}
+ messagePending=true;
+ const button=$('openDialog'),native=$('prepareMessage');if(button)button.disabled=true;if(native)native.disabled=true;
+ try{
+  messageNotice('Проверяем сообщество…');
+  const check=await verifyGroup(g);if(!check.ok){messageNotice(check.reason);return;}
+  const url=dialogUrl(g,text);
+  let opened=false;
+  if(auth.bridge?.send){
+   try{
+    const supported=await deadline(auth.bridge.supportsAsync('VKWebAppOpenLink'),3000,'Нет ответа VK.');
+    if(supported){const result=await deadline(auth.bridge.send('VKWebAppOpenLink',{link:url}),5000,'VK не подтвердил открытие.');opened=result?.result===true;}
+   }catch{}
+  }
+  if(!opened){const w=window.open(url,'_blank');if(w){w.opener=null;opened=true;}}
+  if(opened){
+   if(g.status==='new')g.status='opened';persist();render();
+   messageNotice('Диалог открыт по ссылке с полным текстом. Если VK оставил поле пустым, скопируйте письмо здесь и вставьте его в диалог. Отправка пока не подтверждена.');
+  }else messageNotice('Переход не подтверждён. Нажмите ссылку «Открыть с текстом» ниже — это прямой переход без всплывающего окна приложения.');
+ }catch(e){messageNotice('Не удалось открыть диалог: '+errorText(e,auth.token));}
+ finally{messagePending=false;if(button?.isConnected)button.disabled=!!g.demo;if(native?.isConnected)native.disabled=!!g.demo;}
+}
+async function copyDraftText(){
+ const field=$('draft'),button=$('copyDraft'),status=$('copyStatus');
+ if(!field||button?.disabled)return;
+ const text=field.value;
+ if(button)button.disabled=true;
+ const select=()=>{field.focus({preventScroll:true});field.select();field.setSelectionRange(0,field.value.length);};
+ try{
+  const result=await copyPreparedText(text,{
+   bridge:auth.bridge||(window.vkBridge?.isEmbedded?.()?window.vkBridge:null),
+   clipboard:navigator.clipboard,
+   legacyCopy:()=>{select();return document.execCommand('copy');},
+   selectText:select
+  });
+  if(status?.isConnected)status.textContent=result.status==='copied'?'✓ Полное письмо со всеми ссылками скопировано. Можно открыть диалог.':result.status==='empty'?'Добавьте текст письма.':'Копирование заблокировано устройством. Текст выделен: нажмите «Копировать» в меню выделения или Ctrl+C.';
+ }finally{if(button?.isConnected)button.disabled=false;}
+}
 let messagePending=false;
 async function prepareNativeMessage(g,text){
  if(messagePending){toast('Дождитесь ответа окна VK.');return;}
@@ -82,7 +121,7 @@ async function prepareNativeMessage(g,text){
   show('Передаём письмо в VK. Подтвердите отправку в окне VK — текст и ссылки уже заполнены.');
   const result=await showPreparedMessage(auth.bridge,g.id,text);
   if(result.status==='unsupported'){
-   show('Эта версия VK не поддерживает окно с готовым письмом. Мгновенная отправка от личной страницы недоступна. Используйте «Открыть диалог вручную» и «Скопировать текст».');
+   show('Окно сообщения не поддерживается вашим клиентом VK. Используйте «Проверить и открыть с текстом» или прямую ссылку ниже. Копирование письма доступно отдельно.');
   }else if(result.status==='confirmed'){
    if(g.status==='new')g.status='opened';persist();render();
    show('VK завершил работу с окном сообщения. Проверить отправку можно в диалоге; статус работы отмечается вручную.');
@@ -90,8 +129,10 @@ async function prepareNativeMessage(g,text){
  }catch(e){show('VK не подтвердил отправку: '+errorText(e,auth.token));}
  finally{messagePending=false;if(button?.isConnected)button.disabled=!!g.demo;if(fallback?.isConnected)fallback.disabled=!!g.demo;}
 }
-function compose(g){modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><label for="draft">Готовое сообщение GRM Studio</label><textarea id="draft" rows="18">${esc(messageFor(g,template))}</textarea><div class="modalnote">Передаём весь текст и ссылки в окно сообщения VK от текущего пользователя. Если ваше устройство поддерживает эту функцию, копировать и вставлять письмо не потребуется. Отправку вы подтверждаете в VK.</div><p id="messageStatus" role="status" aria-live="polite">Письмо готово. Можно отредактировать его перед передачей в VK.</p><div class="modalrow"><button class="primary" id="prepareMessage" ${g.demo?'disabled':''}>Написать готовое письмо</button><button class="secondary" id="openDialog" ${g.demo?'disabled':''}>Открыть диалог вручную ↗</button><button class="secondary" id="copyDraft">Скопировать текст</button></div>${!g.demo?`<p style="margin-top:14px"><a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Открыть сообщество ↗</a></p>`:''}<label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
- $('copyDraft').onclick=async()=>{try{await navigator.clipboard.writeText($('draft').value);toast('Текст скопирован');}catch{$('draft').select();toast('Выделен текст: скопируйте его вручную');}};
+function compose(g){
+ modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="primary" id="copyDraft">Скопировать письмо</button><button class="secondary" id="openDialog" ${g.demo?'disabled':''}>Проверить и открыть с текстом ↗</button></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать письмо до открытия диалога.</p><label for="draft">Готовое сообщение GRM Studio</label><textarea id="draft" rows="18">${esc(messageFor(g,template))}</textarea><p id="messageStatus" role="status" aria-live="polite">Ссылка передаёт полный текст, но некоторые версии VK не подставляют его в поле сообщения. В этом случае используйте копирование. Сообщение отправляется после вашего подтверждения в VK.</p><div class="modalrow"><button class="secondary" id="prepareMessage" ${g.demo?'disabled':''}>Окно сообщения VK (если поддерживается)</button></div>${!g.demo?`<p style="margin-top:14px"><a id="draftLink" class="link" target="_blank" rel="noopener noreferrer" href="${esc(dialogUrl(g,messageFor(g,template)))}">Открыть с текстом ↗</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="${esc(dialogUrl(g,''))}">Открыть пустой диалог ↗</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p>`:''}<label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
+ $('copyDraft').onclick=()=>void copyDraftText();
+ $('draft').oninput=()=>{if($('draftLink'))$('draftLink').href=dialogUrl(g,$('draft').value);$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
  $('openDialog').onclick=()=>void openVerifiedDialog(g,$('draft').value);
  $('prepareMessage').onclick=()=>void prepareNativeMessage(g,$('draft').value);
  $('leadStatus').onchange=e=>{g.status=e.target.value;persist();render();};

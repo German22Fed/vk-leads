@@ -1,4 +1,26 @@
-import {deadline} from './vk-connection.js?v=11.31';
+import {deadline} from './vk-connection.js?v=11.32';
+
+// Call directly from a click, not after verification or a supportsAsync request.
+export async function copyPreparedText(text,{bridge,clipboard,legacyCopy=()=>false,selectText=()=>{},timeout=4000}={}){
+  if(typeof text!=='string'||!text.trim())return {status:'empty'};
+  if(bridge?.send){
+    try{
+      const result=await deadline(bridge.send('VKWebAppCopyText',{text}),timeout,'Копирование VK не ответило.');
+      if(result?.result===true)return {status:'copied',method:'vk'};
+    }catch{}
+  }
+  try{
+    if(clipboard?.writeText){
+      await deadline(clipboard.writeText(text),timeout,'Буфер обмена не ответил.');
+      return {status:'copied',method:'clipboard'};
+    }
+  }catch{}
+  // Older WebViews may lack the modern clipboard API. Select the textarea
+  // inside the active modal rather than an element outside its focus scope.
+  try{if(legacyCopy(text)===true)return {status:'copied',method:'selection'};}catch{}
+  selectText();
+  return {status:'manual'};
+}
 
 // The host owns the confirmation and the sender identity. Never replace this
 // with messages.send using a community token or an external user's token.
