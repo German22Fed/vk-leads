@@ -1,4 +1,4 @@
-import {deadline} from './vk-connection.js?v=11.33';
+import {deadline} from './vk-connection.js?v=11.34';
 
 // Call directly from a click, not after verification or a supportsAsync request.
 export async function copyPreparedText(text,{bridge,clipboard,legacyCopy=()=>false,selectText=()=>{},timeout=4000}={}){
@@ -42,4 +42,22 @@ export async function showPreparedMessage(bridge, groupId, text) {
     peer_id: -groupId, message: text,
   }), 120000, 'VK не подтвердил результат. Проверьте диалог перед повтором, чтобы не отправить письмо дважды.');
   return {status:result?.result === true ? 'confirmed' : 'cancelled'};
+}
+
+// Fall back only when no native message operation has started. Cancellation,
+// rejection or an uncertain native response must never initiate another action.
+export async function prepareConversation({bridge,groupId,text,verify,copy,openDialog,onProgress=()=>{}}){
+  if(!Number.isSafeInteger(groupId)||groupId<=0)throw Error('Некорректное сообщество.');
+  if(typeof text!=='string'||!text.trim())throw Error('Добавьте текст сообщения.');
+  onProgress('checking');
+  const checked=await verify();
+  if(!checked.ok)return {status:'blocked',reason:checked.reason};
+  onProgress('native');
+  const native=await showPreparedMessage(bridge,groupId,text);
+  if(native.status!=='unsupported')return native;
+  onProgress('opening');
+  let copied={status:'manual'};
+  try{copied=await copy;}catch{}
+  const opened=await openDialog();
+  return {status:opened?'dialog':'link-required',copied:copied?.status==='copied'};
 }
