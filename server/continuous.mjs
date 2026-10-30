@@ -68,6 +68,7 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
   for(const r of Object.values(engine.state.records))if(r.wallError)r.wallError='Стена недоступна';
   engine.state.runs=engine.state.runs.slice(0,10).map(({error,...r})=>r);
   return {state:engine.state,feed:{version:1,status:'ok',updatedAt:now,startedAt:engine.state.bootstrap.at,
+    observation:{checked:run.checked,returned:run.returned,deleted:run.deleted,usable:run.usable,omitted:run.omitted,incomplete:run.incomplete,tracked:Object.keys(engine.state.records).length},
     cycles:engine.state.cycles,checkedIds:Object.keys(engine.state.records).length,groups,
     note:'Время появления ID в API, не подтверждённая дата регистрации. Начальная база исключена.'}};
 }

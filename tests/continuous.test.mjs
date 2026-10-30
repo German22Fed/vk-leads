@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {collectOnce,compactState} from '../server/continuous.mjs';
-import {validateFeed} from '../dist/hosted-feed.js';
+import {validateFeed,feedOutcome} from '../dist/hosted-feed.js';
 import {filterGroups} from '../dist/core.js';
 
 function fixture(){
@@ -17,6 +17,17 @@ function fixture(){
   };
   return {api,clock:()=>now,discover:async()=>({id:100}),tick(){now+=900000;phase++;},fail(){failed=true;}};
 }
+
+test('VK placeholders for all future IDs report unusable observation instead of promising candidates',async()=>{
+ const api=async(m,p)=>({groups:p.group_ids.split(',').map(Number).map(id=>({id,name:id===1?'Control':'delete'}))});
+ let r=await collectOnce({api,discover:async()=>({id:100}),clock:()=>Date.UTC(2026,9,30,10)});
+ assert.equal(r.feed.observation.checked,2000);assert.equal(r.feed.observation.deleted,2000);
+ assert.equal(r.feed.observation.omitted,0);assert.equal(r.feed.observation.tracked,0);
+ assert.deepEqual(r.feed.groups,[]);assert.equal(feedOutcome(r.feed).kind,'blocked');
+ // A deleted/unavailable placeholder is never evidence of nonexistence.
+ r=await collectOnce({api,previous:r.state,clock:()=>Date.UTC(2026,9,30,10,15)});
+ assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.tracked,0);
+});
 test('Autonomous bootstrap excludes baseline; two absences then appearance; old, deleted and irrelevant excluded',async()=>{
   const f=fixture();let r=await collectOnce(f);
   assert.deepEqual(r.feed.groups,[]);assert.equal(r.state.bootstrap.id,100);

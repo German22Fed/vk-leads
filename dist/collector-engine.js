@@ -1,5 +1,5 @@
 import { normalizeGroup } from './core.js';
-import { groupRows, isIncompleteGroup, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.36';
+import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.36';
 
 const DAY = 86400000;
 export const moscowDay = at => new Date(at + 10800000).toISOString().slice(0, 10);
@@ -116,7 +116,7 @@ export class Collector {
     if (this.busy) throw Error('Проверка уже выполняется.');
     if (!this.state.config) throw Error('Сначала сохраните диапазон ID.');
     this.busy = true; this.cancelled = false;
-    const run = { startedAt: this.clock(), checked: 0, incomplete: 0, status: 'running' };
+    const run = { startedAt: this.clock(), checked: 0, incomplete: 0, returned: 0, deleted: 0, usable: 0, omitted: 0, status: 'running' };
     try {
       const ids = this.idsForCycle();
       if (new Set([...Object.keys(this.state.records).map(Number), ...ids]).size > this.maxRecords) throw Error('Достигнут лимит истории на этом устройстве. Экспортируйте журнал и начните новое наблюдение.');
@@ -130,6 +130,11 @@ export class Collector {
         const rows = groupRows(raw, requested, {allowIncomplete:true});
         if (!rows.some(r=>r.id===1 && isUsableGroup(r))) throw Error('VK API не вернул полноценное контрольное сообщество ID 1. Отсутствие остальных ID не засчитано.');
         run.incomplete+=rows.filter(isIncompleteGroup).length;
+        const observed=rows.filter(r=>batch.includes(r.id));
+        run.returned+=observed.length;
+        run.deleted+=observed.filter(isDeletedMarker).length;
+        run.usable+=observed.filter(isUsableGroup).length;
+        run.omitted+=batch.length-observed.length;
         recordBatch(this.state, batch, rows.filter(r=>batch.includes(r.id)), this.clock(), started);
         run.checked += batch.length;
         await this.save();
