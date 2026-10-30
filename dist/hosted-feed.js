@@ -1,4 +1,5 @@
 import {isLeadFitGroup} from './vk-data.js?v=11.37';
+import {hasCandidateInterval} from './core.js?v=11.38';
 export function validateFeed(data,now=Date.now()){
   if(data?.version!==1||!Array.isArray(data.groups)||!['ok','waiting'].includes(data.status))throw Error('Некорректный ответ сборщика.');
   if(data.status==='waiting')return {...data,groups:[],stale:false};
@@ -8,8 +9,7 @@ export function validateFeed(data,now=Date.now()){
   return {...data,stale,groups:stale?[]:data.groups.filter(g=>{
     const a=g.observation?.appearance;
     if(seen.has(g.id)||g.collectorFeed!==true||!isLeadFitGroup(g)||g.available!==true||
-       a?.kind!=='candidate'||!Number.isFinite(a.from)||!Number.isFinite(a.to)||a.from>a.to||a.to>now||
-       !['candidate_today','candidate_other_day'].includes(g.observation.verdict)||
+       !hasCandidateInterval(g)||!Number.isFinite(a.from)||!Number.isFinite(a.to)||a.from>a.to||a.to>now||
        !Number.isFinite(g.verifiedAt)||now-g.verifiedAt>3600000||g.verifiedAt>now||
        !Number.isFinite(g.members)||g.members>500||g.wallUnavailable!==false)return false;
     seen.add(g.id);return true;
@@ -21,8 +21,8 @@ export function feedOutcome(data,count=data.groups.length){
   if(data.collector?.status==='error')return {kind:'error',title:'Ошибка серверного сбора',message:'Последняя проверка VK завершилась ошибкой. Проверьте ключ и доступ к groups.getById / wall.get в журнале сборщика. Новые данные не получены.',setup:true};
   if(data.status==='waiting')return {kind:'blocked',title:'Поиск ещё не активирован',message:'Сборщик ещё не опубликовал первую успешную проверку. Добавьте VK_SERVICE_TOKEN в GitHub Secrets и запустите Collect VK communities.',setup:true};
   if(data.stale)return {kind:'error',title:'Сборщик давно не обновлялся',message:'Больше часа нет успешных проверок. Устаревшие карточки скрыты. Откройте журнал сборщика.',setup:true};
-  if(data.observation?.checked>0 && data.observation.tracked===0)return {kind:'blocked',title:'VK отвечает, но история новых ID не накоплена',message:`Проверено ID: ${data.observation.checked}. Доступных сообществ: ${data.observation.usable}. Ответов об удалённых или недоступных группах: ${data.observation.deleted}. Такие ответы не доказывают, что сообщество ещё не создано, и не попадают в ленту. Сборщик продолжит проверки по расписанию, но появление карточек пока не подтверждено.`,setup:false};
-  return {kind:'ready',title:count?'Подбор обновлён':'Подходящих сообществ пока нет',message:`В выбранном периоде с текущими фильтрами: ${count}. Всего в общей ленте: ${data.groups.length}. Последняя успешная проверка: ${new Date(data.updatedAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} МСК.`+(count?'':' Первые результаты появятся после накопления наблюдений. Изменение фильтра не создаёт новые данные.'),setup:false};
+  if(data.observation?.checked>0 && data.observation.tracked===0 && !data.observation.frontierProbes)return {kind:'blocked',title:'VK отвечает, но история новых ID не накоплена',message:`Проверено ID: ${data.observation.checked}. Доступных сообществ: ${data.observation.usable}. Ответов об удалённых или недоступных группах: ${data.observation.deleted}. Такие ответы не доказывают, что сообщество ещё не создано, и не попадают в ленту. Сборщик продолжит проверки по расписанию, но появление карточек пока не подтверждено.`,setup:false};
+  return {kind:'ready',title:count?'Свежие кандидаты обновлены':'Подходящих кандидатов пока нет',message:`В выбранном периоде с текущими фильтрами: ${count}. Всего в общей ленте: ${data.groups.length}. Последняя успешная проверка: ${new Date(data.updatedAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} МСК.`+(data.observation?` Проверено ID: ${data.observation.checked}; доступны: ${data.observation.usable}; заглушки: ${data.observation.deleted}.`:'')+(count?' Дата регистрации не подтверждена.':' Карточки появятся только после подходящего перехода ID и проверки стены. Изменение фильтра не создаёт новые данные.'),setup:false};
 }
 export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,url=new URL('./community-feed.json',import.meta.url),timeoutMs=15000}){
   let pending=null;
@@ -51,7 +51,7 @@ export function initHostedFeed(onUpdate,_seed,options){
     <button class="primary" id="cloudRefresh">Обновить подходящие сообщества</button>
     <p id="cloudStatus" role="status" aria-live="polite"></p>
     <div id="cloudSetup" hidden><p>Подключение требуется один раз владельцу приложения. Посетителям ключ не нужен.</p><a class="link" href="https://github.com/German22Fed/vk-leads/settings/secrets/actions" target="_blank" rel="noopener noreferrer">Добавить VK_SERVICE_TOKEN ↗</a> · <a class="link" href="https://github.com/German22Fed/vk-leads/actions/workflows/vk-collector.yml" target="_blank" rel="noopener noreferrer">Запустить сборщик / журнал ошибок ↗</a></div>
-    <small>Начальная база, повторы, удалённые группы и группы с обнаруженными старыми постами исключаются. Период означает появление ID в API, а не точную дату регистрации. Проверки по расписанию примерно раз в 15 минут; возможны задержки.</small>`;
+    <small>Кандидаты у растущей верхней границы ID: раньше VK возвращал заглушку, теперь — доступное сообщество. Начальная база, повторы и обнаруженные старые посты исключаются. Период — интервал этого перехода, не дата регистрации. Ранее скрытые или восстановленные группы полностью исключить нельзя. Проверки по расписанию примерно раз в 15 минут; возможны задержки.</small>`;
   const status=document.getElementById('cloudStatus'),badge=document.getElementById('cloudBadge'),button=document.getElementById('cloudRefresh');
   const mainButton=document.getElementById('searchBtn'),summary=document.getElementById('searchFeedback');
   const refresh=createFeedLoader({onData:data=>{onUpdate({connected:false,groups:data.groups,hosted:true});return Number(document.getElementById('listCount').textContent)||0;},onState:s=>{
