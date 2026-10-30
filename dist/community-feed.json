@@ -1,1 +1,1 @@
-{"version":1,"status":"waiting","groups":[]}
+{"version":1,"status":"waiting","groups":[],"collector":{"status":"error","errorCode":"missing_token","attemptedAt":1793390301134}}
