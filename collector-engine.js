@@ -1,5 +1,5 @@
 import { normalizeGroup } from './core.js';
-import { groupRows, isIncompleteGroup, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.34';
+import { groupRows, isIncompleteGroup, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.35';
 
 const DAY = 86400000;
 export const moscowDay = at => new Date(at + 10800000).toISOString().slice(0, 10);
@@ -163,7 +163,7 @@ export class Collector {
     }
     return run;
   }
-  start() {
+  start({immediate=true}={}) {
     if (!this.state.config) throw Error('Сначала сохраните диапазон ID.');
     if (this.busy || this.running) throw Error('Сборщик уже запущен.');
     this.running = true;
@@ -171,7 +171,8 @@ export class Collector {
       try { await this.cycle(); } catch (e) { this.message = e.message; this.running = false; }
       if (this.running) this.timer = setTimeout(tick, this.state.config.intervalSeconds*1000);
     };
-    void tick();
+    if(immediate)void tick();
+    else this.timer=setTimeout(tick,this.state.config.intervalSeconds*1000);
   }
   stop() { this.running = false; this.cancelled = true; clearTimeout(this.timer); }
   async addControl({ id, createdAt, note }) {

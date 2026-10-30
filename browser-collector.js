@@ -1,7 +1,8 @@
-import {Collector, initialState} from './collector-engine.js?v=11.34';
+import {Collector, initialState} from './collector-engine.js?v=11.35';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.34';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.34';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.35';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.35';
+import {refreshObservation} from './period-search.js?v=11.35';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
 export const AUTO_QUERIES=['ресницы','брови','маникюр','салон красоты','парикмахерская','психолог','психология','мебель на заказ','кухни на заказ','диваны','ремонт квартир','магазин','клиника','стоматология','кафе','фотограф','студия'];
@@ -52,9 +53,9 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
   $('collectorPanel').innerHTML=`<div class="leadFinder"><div class="sectionheading"><div><h2>Новые сообщества для дизайна</h2><p>Показываем только подходящие коммерческие названия из VK.</p></div><span id="monitorBadge">Не запущено</span></div>
   <p class="collectorHint">Выберите период появления и нажмите одну кнопку. Система будет наблюдать VK, проверять карточки и оставлять только салоны, магазины, услуги, мебель, экспертов и другие коммерческие направления.</p>
   <div class="leadPeriodButtons" role="group" aria-label="Период появления"><button class="secondary" id="leadPeriod1">Появились за последний час</button><button class="secondary" id="leadPeriod13">Появились за 1–3 часа</button><button class="secondary" id="leadPeriodToday">Появились сегодня</button></div>
-  <div class="modalrow"><button id="leadFind" class="primary">Найти подходящие сообщества</button><button id="leadConnect" class="secondary">Подключить VK</button></div>
+  <div class="modalrow"><button id="leadFind" class="primary">Найти подходящие сообщества</button><button id="leadStop" class="secondary" disabled>Остановить</button><button id="leadConnect" class="secondary">Подключить VK</button></div><button id="leadSnapshot" class="textbtn">Последние ID — дата неизвестна</button>
   <p id="leadStatus" role="status" aria-live="polite">Для поиска откройте Mini App внутри VK и подключите аккаунт.</p></div>
-  <div id="collectorLegacy" hidden><div class="sectionheading"><div><h2>Ручной поиск и наблюдение</h2><p>Подбор новых возможностей — прямо в ленте.</p></div><span id="monitorBadge">Остановлено</span></div>
+  <div id="collectorLegacy" hidden><div class="sectionheading"><div><h2>Ручной поиск и наблюдение</h2><p>Подбор новых возможностей — прямо в ленте.</p></div><span id="monitorLegacyBadge">Остановлено</span></div>
   <p class="collectorHint">Свежие группы без ввода ID: находим примерную верхнюю границу номеров ВК и загружаем сообщества от неё назад. Дата создания этих групп неизвестна. Затем можно наблюдать появление следующих ID.</p>
   <div class="modalrow"><button id="freshStart" class="primary">Найти свежие группы без ID</button><button id="freshStop" class="secondary" disabled>Остановить поиск</button><button id="freshMore" class="secondary" disabled>Ещё 500 ID</button></div>
   <p id="freshStatus" role="status" aria-live="polite">Подключите VK и нажмите «Найти свежие группы без ID». За один ручной запуск проверяется не более 1 000 номеров.</p>
@@ -80,7 +81,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
   const collector=new Collector({api,storage:browserStorage(window.indexedDB,'radar-monitor-'+user),maxRecords:10000});
   let wanted=false, acting=false, signature='',loaded=false, autoWanted=false, autoBusy=false, autoTimer=null, autoPage=0;
   const autoSeen=new Set();
-  let freshBusy=false,freshAbort=null,nextFreshId=null,freshChecked=0,freshReport=null;
+  let freshBusy=false,freshAbort=null,nextFreshId=null,freshChecked=0,freshReport=null,periodAbort=null;
   function render(){
     const s=collector.snapshot(), paused=wanted&&document.hidden;
     $('monitorBadge').textContent=paused?'Пауза · приложение скрыто':(freshBusy||autoBusy||s.busy)?'Проверяем':(autoWanted||s.running)?'Наблюдаем':'Остановлено';
@@ -90,6 +91,9 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     $('monitorLast').textContent=`Последняя проверка: ${when(s.runs[0]?.finishedAt)}. ${s.runs[0]?.error||''}`;
     $('monitorStart').disabled=!loaded||acting||s.busy||wanted||freshBusy;
     $('monitorStop').disabled=!wanted&&!s.busy;
+    $('leadStop').disabled=!wanted&&!s.busy&&!freshBusy&&!acting;
+    $('leadFind').disabled=!loaded||acting||freshBusy;
+    $('leadSnapshot').disabled=!loaded||acting||freshBusy;
     $('autoStart').disabled=autoBusy||autoWanted||freshBusy;
     $('autoStop').disabled=!autoWanted&&!autoBusy;
     $('freshStart').disabled=!loaded||freshBusy||acting||s.busy||s.running||wanted||autoBusy;
@@ -115,7 +119,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     if(freshBusy||collector.busy||collector.running||wanted||autoBusy)return;
     if(!isConnected()){onConnect();$('freshStatus').textContent='Подключите VK, затем повторите поиск свежих групп.';return;}
     stopAuto();if(!more)onFreshStart?.();freshBusy=true;freshAbort=new AbortController();
-      freshReport={version:'11.34',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
+      freshReport={version:'11.35',startedAt:Date.now(),kind:more?'next_page':'frontier',probes:[],loadedIds:[]};render();
     const signal=freshAbort.signal,progress=s=>{$('freshStatus').textContent=s;};
     try{
       if(!more){
@@ -123,7 +127,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
         const frontier=await findIdFrontier({api,signal,onProgress:progress,onProbe:p=>freshReport.probes.push(p)});
         freshReport.frontier=frontier;
         nextFreshId=frontier.id;
-        await collector.configure({startId:frontier.id+1,width:Number($('monitorWidth').value),intervalSeconds:Number($('monitorInterval').value),advance:true});
+        if(!collector.state.config)await collector.configure({startId:frontier.id+1,width:Number($('monitorWidth').value),intervalSeconds:60,advance:true});
         $('monitorSeed').value=String(frontier.id);
       }
       let shown=0;
@@ -168,7 +172,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     collector.start();wanted=true;$('monitorAction').textContent='Первая проверка создаёт исходную базу. Новые кандидаты появятся после последующих проверок.';
   });
   $('monitorStop').onclick=()=>{wanted=false;collector.stop();$('monitorAction').textContent='Наблюдение остановлено. История сохранена.';render();};
-  $('monitorShow').onclick=onShowCandidates;
+  $('monitorShow').onclick=()=>onShowCandidates($('period').value||'today');
   $('monitorExport').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(collector.state,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='vk-leads-observations.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   $('monitorReset').onclick=()=>{$('monitorResetConfirm').hidden=false;};
   $('monitorResetConfirm').onclick=()=>action(async()=>{
@@ -177,51 +181,40 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
     onReset();
     nextFreshId=null;freshChecked=0;collector.message='История сброшена. Ориентир определится автоматически.';$('monitorResetConfirm').hidden=true;$('monitorAction').textContent='Новая история готова.';
   });
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){collector.stop();freshAbort?.abort();}render();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){collector.stop();freshAbort?.abort();periodAbort?.abort();}render();});
   setInterval(()=>{
     if((wanted||autoWanted)&&!isConnected()){wanted=false;stopAuto();collector.stop();$('monitorAction').textContent='Подключение VK потеряно. Подключитесь и запустите наблюдение снова.';}
     if(wanted&&!collector.running&&!collector.busy){
-      if(collector.state.runs[0]?.status==='error'){wanted=false;}
+      if(collector.state.runs[0]?.status==='error'){wanted=false;$('leadStatus').textContent='Проверки остановлены: '+collector.state.runs[0].error;}
       else if(!document.hidden)collector.start();
     }
     render();
   },1000);
-  const chooseLeadPeriod=period=>{ $('period').value=period; document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.classList.toggle('selected',b.dataset.period===period)); };
+  const chooseLeadPeriod=period=>{ $('period').value=period;onShowCandidates?.(period); };
   $('leadPeriod1').dataset.period='1h';$('leadPeriod13').dataset.period='1-3h';$('leadPeriodToday').dataset.period='today';
   document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.onclick=()=>chooseLeadPeriod(b.dataset.period));
   $('leadConnect').onclick=()=>onConnect?.();
-  const startObservation=async()=>{
-    if(!isConnected()){onConnect?.();throw Error('Подключите VK и повторите поиск.');}
-    if(!collector.state.config){
-      freshAbort=new AbortController();freshBusy=true;render();
-      try{const frontier=await findIdFrontier({api,signal:freshAbort.signal,onProgress:s=>{$('leadStatus').textContent='Подготавливаем поиск…';}});await collector.configure({startId:frontier.id+1,width:500,intervalSeconds:60,advance:true});}
-      finally{freshBusy=false;freshAbort=null;}
-    }
-    if(document.hidden)throw Error('Откройте Mini App на экране и повторите поиск.');
-    if(!collector.running){collector.start();wanted=true;}
-  };
+  $('leadStop').onclick=()=>{wanted=false;periodAbort?.abort();freshAbort?.abort();collector.stop();$('leadStatus').textContent='Останавливаем проверку. Сохранённые результаты остаются в выбранном периоде.';render();};
+  $('leadSnapshot').onclick=async()=>{if(acting||freshBusy)return;wanted=false;collector.stop();if(collector.busy){$('leadStatus').textContent='Дождитесь завершения проверки и повторите.';return;}acting=true;try{await findFresh();$('leadStatus').textContent='Отдельный снимок последних ID. Он не подтверждает время создания. Для диапазона нажмите кнопку периода.';}finally{acting=false;render();}};
   $('leadFind').onclick=async()=>{
     if(acting||freshBusy)return;
     acting=true;$('leadFind').disabled=true;$('leadStatus').textContent='Проверяем VK и готовим подходящие сообщества…';
     try{
-      const period=document.querySelector('.leadPeriodButtons .selected')?.dataset.period||'today';chooseLeadPeriod(period);
+      const period=$('period').value||'today';chooseLeadPeriod(period);
+      if(!loaded)throw Error('История наблюдений недоступна. Перезагрузите приложение.');
       if(!isConnected()){onConnect?.();throw Error('Подключите VK и повторите поиск.');}
-      // A previous search starts the one-minute observer. Stop that cycle so
-      // the next click can create a new fresh-ID snapshot instead of being
-      // ignored while the old cycle is still running.
-      if(collector.running||wanted){wanted=false;collector.stop();}
-      const waitUntil=Date.now()+15000;
-      while(collector.busy&&Date.now()<waitUntil)await new Promise(resolve=>setTimeout(resolve,100));
-      if(collector.busy)throw Error('Предыдущая проверка VK ещё завершается. Повторите через несколько секунд.');
-      $('leadStatus').textContent='Ищем верхнюю границу VK и проверяем самые свежие ID…';
-      // groups.search is relevance-ranked and returns old popular groups.
-      // Fresh-period buttons always use the current ID snapshot instead.
-      await findFresh();
-      await startObservation();
-      $('leadStatus').textContent='Свежий снимок VK загружен. Крупные старые сообщества исключены; наблюдение новых продолжено.';
+      if(document.hidden)throw Error('Вернитесь в Mini App и повторите поиск.');
+      wanted=false;stopAuto();periodAbort=new AbortController();
+      const s=await refreshObservation({collector,signal:periodAbort.signal,ensureConfig:async()=>{
+        $('leadStatus').textContent='Определяем диапазон новых ID для начала наблюдения…';
+        const frontier=await findIdFrontier({api,signal:periodAbort.signal,onProgress:msg=>{$('leadStatus').textContent=msg;}});
+        await collector.configure({startId:frontier.id+1,width:500,intervalSeconds:60,advance:true});
+      }});
+      wanted=true;onUpdate({connected:false,groups:s.groups});onShowCandidates?.($('period').value||period);
+      $('leadStatus').textContent='Проверка завершена. Выбранный интервал применяется ко всей сохранённой истории. Без истории за нужное время результаты восстановить нельзя. Наблюдение продолжается при открытом Mini App; дата регистрации не подтверждается.';
     }
     catch(e){$('leadStatus').textContent=e.message;}
-    finally{autoBusy=false;acting=false;$('leadFind').disabled=false;render();}
+    finally{periodAbort=null;acting=false;render();}
   };
   chooseLeadPeriod('today');
   render();

@@ -1,5 +1,5 @@
-import {initBrowserCollector} from './browser-collector.js?v=11.34';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.34';
+import {initBrowserCollector} from './browser-collector.js?v=11.35';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.35';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const when = n => n ? new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК' : '—';
@@ -27,7 +27,7 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
     <div class="modalrow"><button id="leadFind" class="primary">Найти подходящие сообщества</button><button id="leadConnect" class="secondary">Подключить VK</button></div>
     <p id="leadStatus" role="status" aria-live="polite">Проверяем доступность локального поиска…</p></div>
     <div id="collectorLegacy" hidden>
-    <div class="sectionheading"><div><h2>Сборщик новых ID <span>Эксперимент</span></h2><p>Реальные запросы ВК и история проверок на вашем компьютере.</p></div><span id="collectorBadge">Проверяю сервер…</span></div>
+    <div class="sectionheading"><div><h2>Сборщик новых ID <span>Эксперимент</span></h2><p>Реальные запросы ВК и история проверок на вашем компьютере.</p></div><span id="collectorLegacyBadge">Проверяю сервер…</span></div>
     <p id="collectorStatus" role="status">Подключение к локальному сборщику…</p>
     <div class="collectorStats"><span>Проверено ID <b id="collectorChecked">0</b></span><span>Кандидатов за сегодня <b id="collectorCandidates">0</b></span><span>Найдены старые посты <b id="collectorOlder">0</b></span><span>Завершено циклов <b id="collectorCycles">0</b></span></div>
     <details id="collectorSetup" open><summary>Подключение и диапазон поиска</summary>
@@ -88,8 +88,8 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
     $('collectorAction').className='';
     $('collectorAction').textContent = 'Выполняю…';
     try { if(!available) throw Error('Сначала запустите локальный сервер.'); await fn(); $('collectorAction').textContent='Готово'; $('collectorAction').className='success'; }
-    catch(e) { $('collectorAction').textContent = e.message; $('collectorAction').className='error'; }
-    finally {acting=false;await update();}
+    catch(e) { $('collectorAction').textContent = e.message; $('collectorAction').className='error'; $('leadStatus').textContent=e.message; }
+    finally {acting=false;$('leadFind').disabled=false;await update();}
   }
   $('collectorConnect').onclick=()=>action(async()=>{const value=$('collectorKey').value.trim();$('collectorKey').value='';await collectorRequest('connect',{token:value});});
   $('collectorDisconnect').onclick=()=>action(()=>collectorRequest('disconnect',{}));
@@ -115,18 +115,25 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
   $('collectorStop').onclick=()=>action(()=>collectorRequest('stop',{}));
   $('controlSave').onclick=()=>action(()=>collectorRequest('control',{id:$('controlId').value,createdAt:$('controlAt').value?$('controlAt').value+':00+03:00':'',note:$('controlNote').value}));
   $('collectorExport').onclick=()=>action(async()=>{const data=await collectorRequest('export'),url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='vk-leads-observations.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
-  let leadPeriod='today';
-  const chooseLeadPeriod=period=>{leadPeriod=period;$('period').value=period;browserOptions.onShowCandidates?.(period);document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.classList.toggle('selected',b.dataset.period===period));};
+  const chooseLeadPeriod=period=>{$('period').value=period;browserOptions.onShowCandidates?.(period);};
   $('leadPeriod1').dataset.period='1h';$('leadPeriod13').dataset.period='1-3h';$('leadPeriodToday').dataset.period='today';
   document.querySelectorAll('.leadPeriodButtons button').forEach(b=>b.onclick=()=>chooseLeadPeriod(b.dataset.period));
   $('leadConnect').onclick=()=>browserOptions.onConnect?.();
   $('leadFind').onclick=()=>action(async()=>{
+    $('leadFind').disabled=true;
+    chooseLeadPeriod($('period').value||'today');
+    $('leadStatus').textContent='Проверяем выбранный период по сохранённой истории…';
     if(!available)throw Error('Локальный сервер не подключён. Откройте Mini App внутри VK.');
     const s=await collectorRequest('status');if(!s.connected)throw Error('Сначала подключите VK API в локальном режиме.');
-    const api=async(method,params)=>(await collectorRequest('vk',{method,params})).response;
-    const frontier=await findIdFrontier({api,onProgress:msg=>{$('leadStatus').textContent='Подготавливаем поиск…';}});
-    await collectorRequest('config',{startId:frontier.id+1,width:500,intervalSeconds:600,advance:true});
-    await collectorRequest('start',{});browserOptions.onShowCandidates?.(leadPeriod);$('leadStatus').textContent='Поиск запущен. Подходящие сообщества появятся после проверки VK.';
+    if(s.running||s.busy){
+      onUpdate(s);$('leadStatus').textContent='Проверки уже выполняются. Выбранный период применён к сохранённым результатам; новые результаты появятся после текущей проверки.';return;
+    }
+    if(!s.config){
+      const api=async(method,params)=>(await collectorRequest('vk',{method,params})).response;
+      const frontier=await findIdFrontier({api,onProgress:msg=>{$('leadStatus').textContent=msg;}});
+      await collectorRequest('config',{startId:frontier.id+1,width:500,intervalSeconds:60,advance:true});
+    }
+    await collectorRequest('start',{});browserOptions.onShowCandidates?.($('period').value||'today');$('leadStatus').textContent='Проверки запущены, история сохранена. Показываем только наблюдения в выбранном интервале. Без прошлых наблюдений восстановить время появления невозможно; дата регистрации не подтверждена.';
   });
   chooseLeadPeriod('today');
   void update(); setInterval(()=>{if(!document.hidden)void update();},4000);
