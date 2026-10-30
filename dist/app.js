@@ -1,17 +1,18 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.36.1';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.36.1';
-import {getBridge} from './vk-start.js?v=11.36.1';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.36.1';
-import {initHostedFeed} from './hosted-feed.js?v=11.36.1';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.37';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.37';
+import {getBridge} from './vk-start.js?v=11.37';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.37';
+import {initHostedFeed} from './hosted-feed.js?v=11.37';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.36.1';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.36.1';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.37';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.37';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
 const date=n=>new Date(n).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})+' МСК';
 let toastTimer,view='discover',mode='live',busy=false,runCancelled=false,autoTimer,autoFeedShown=false,freshFilter=false,snapshotMode=false,freshSessionIds=new Set(),freshObservationStartedAt=0,lastSearchAt=0,lastDialogOpenAt=0;
 let startAutoSearch=()=>{};
+let hostedSearch=null;
 const auth = new VkConnection({getBridge,onChange:()=>renderConnection()});
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
 function write(key,data){try{localStorage.setItem(key,JSON.stringify(data));return true;}catch{toast('Не удалось сохранить данные в браузере. Сделайте экспорт базы.');return false;}}
@@ -69,7 +70,7 @@ function selectPeriod(period){
 }
 function reset(){for(const id of ['onlyNew','exact','canMessage'])$(id).checked=false;$('filterQuery').value='';freshFilter=false;render();}
 for(const id of ['filterQuery','period','sort','onlyNew','exact','canMessage','dateBasis','minHours','maxHours'])$(id).addEventListener(['filterQuery','minHours','maxHours'].includes(id)?'input':'change',render);
-document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>selectPeriod(b.dataset.period));
+document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{selectPeriod(b.dataset.period);if(hostedFeed&&hostedSearch)void hostedSearch();});
 $('dateBasis').addEventListener('change',()=>{freshFilter=false;snapshotMode=false;render();});
 $('resetFilters').onclick=reset;$('emptyReset').onclick=reset;
 document.querySelectorAll('[data-view]').forEach(el=>el.onclick=()=>{view=el.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x===el));$('crumb').textContent=el.textContent.trim().replace(/^[^А-Я]+/,'');$('mainContent').hidden=view==='templates';$('templateView').hidden=view!=='templates';if(view==='templates')$('templateText').value=template;if(view==='pipeline'||view==='saved')reset();render();});
@@ -238,7 +239,7 @@ function searchModal(){
  $('runSearch').onclick=async()=>{if(!(auth.connected||serverConnected)){return settingsModal();}const wait=15000-(Date.now()-lastSearchAt);if(wait>0)return toast(`Подождите ${Math.ceil(wait/1000)} сек. перед новым поиском.`);const query=$('searchQuery').value.trim();if(!query)return toast('Добавьте хотя бы одно ключевое слово.');const options={minus:$('searchMinus').value,region:$('regionQuery').value,membersMin:Number($('membersMin').value||0),membersMax:Number($('membersMax').value||0),postsMin:Number($('postsMin').value||0),postsMax:Number($('postsMax').value||0),lastPostDays:Number($('lastPostDays').value||0),recentHours:$('onlyRecent').checked?24:0,opportunities:$('onlyOpportunities').checked};const limit=Number($('searchLimit').value);try{searchPlan(query,limit);}catch(e){return toast(e.message);}settings.query=query;settings.leadFilters={...options,direction:$('leadDirection').value,limit};write('radar.settings',settings);lastSearchAt=Date.now();await search(query,limit,options);};
  $('stopSearch').onclick=()=>{runCancelled=true;progress('Поиск остановится после текущего запроса.');};
 }
- $('searchBtn').onclick=()=>hostedFeed?$('cloudRefresh')?.click():searchModal();
+ $('searchBtn').onclick=()=>hostedFeed?(hostedSearch?void hostedSearch():toast('Панель поиска ещё загружается. Повторите через несколько секунд.')):searchModal();
 function progress(s){$('feedStatus').textContent=s;if($('searchStatus'))$('searchStatus').textContent=s;}
 async function enrich(ids){let collected=[],failed=0;const raw=await api('groups.getById',{group_ids:ids.join(','),fields:'name,screen_name,members_count,city,activity,description,has_photo,cover,can_message,deactivated'});const rows=groupRows(raw,ids,{allowIncomplete:true});for(const g of rows){if(runCancelled)break;if(!isLeadFitGroup(g))continue;let wall;try{wall=await api('wall.get',{owner_id:-g.id,count:5,filter:'all'});}catch(e){if(!(auth.connected||serverConnected))throw e;failed++;}collected.push({...normalizeGroup(g,wall),verifiedAt:Date.now(),verification:'groups.getById'});progress(`Проверено ${collected.length} из ${rows.length}. Недоступных стен: ${failed}.`);}return {collected,failed};}
 function leadTerms(value){return String(value||'').split(/[\n,;]+/).map(s=>s.trim().toLowerCase()).filter(Boolean);}
@@ -295,6 +296,7 @@ setInterval(()=>{if(!document.hidden&&view!=='templates')render();},60000);
 let collectorSignature='';
 (hostedFeed?initHostedFeed:initCollector)(s=>{serverConnected=s.connected;if(s.hosted){const ids=new Set(s.groups.map(g=>g.id));live=live.map(g=>g.collectorFeed&&!ids.has(g.id)?{...g,available:false}:g);freshFilter=false;}if(freshFilter&&freshObservationStartedAt){for(const g of s.groups||[]){const appearedAt=g.observation?.appearance?.to;if(g.observation?.appearance?.kind==='candidate'&&Number.isFinite(appearedAt)&&appearedAt>=freshObservationStartedAt)freshSessionIds.add(g.id);}}const signature=JSON.stringify(s.groups);if(signature!==collectorSignature){collectorSignature=signature;live=mergeGroups(live,(s.groups||[]).filter(isVerifiedGroup));mode='live';persist();}render();},()=>live.filter(g=>isVerifiedGroup(g)).map(g=>g.id),{
  api,isConnected:()=>auth.connected,onConnect:settingsModal,onSearch:searchModal,
+ onRegisterSearch:fn=>{hostedSearch=fn;},
  onFreshStart:()=>{freshSessionIds=new Set();freshObservationStartedAt=Date.now();freshFilter=true;mode='live';render();},
  onAutoGroups:groups=>{const filtered=groups.filter(isVerifiedGroup),before=new Set(live.map(g=>g.id));live=mergeGroups(live,filtered);mode='live';freshFilter=false;if(filtered.length)autoFeedShown=true;persist();render();toast(`Проверка VK: ${filtered.filter(g=>!before.has(g.id)).length} новых подходящих карточек добавлено в ленту.`);},
  onFreshGroups:groups=>{const filtered=groups.filter(isFreshLead);filtered.forEach(g=>freshSessionIds.add(g.id));live=mergeGroups(live,filtered);mode='live';view='discover';freshFilter=true;snapshotMode=true;$('dateBasis').value='id';$('sort').value='id';document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));persist();render();$('feedStatus').textContent='Свежий снимок VK: повторы скрыты, крупные старые сообщества исключены.';},

@@ -27,6 +27,8 @@ jobs:
         with:
           node-version: '22'
       - name: Collect and verify
+        id: collection
+        continue-on-error: true
         env:
           VK_SERVICE_TOKEN: ${{ secrets.VK_SERVICE_TOKEN }}
         run: node server/run-continuous.mjs
@@ -34,8 +36,9 @@ jobs:
         run: |
           git config user.name 'VK Leads Collector'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add collector-data/state.json dist/community-feed.json
-          git commit -m 'Update verified community feed'
+          git add dist/community-feed.json
+          if [ -f collector-data/state.json ]; then git add collector-data/state.json; fi
+          git diff --cached --quiet || git commit -m 'Update community feed and collector status'
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main
@@ -47,3 +50,6 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Report collection failure after publishing diagnostics
+        if: steps.collection.outcome == 'failure'
+        run: exit 1

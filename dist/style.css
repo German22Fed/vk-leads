@@ -18,3 +18,5 @@
 .leadFinder{background:linear-gradient(135deg,#f4f7ff,#fff);border:1px solid #d7e2fb;border-radius:16px;padding:22px;margin-bottom:24px}.leadFinder .collectorHint{max-width:760px}.leadPeriodButtons{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.leadPeriodButtons button{min-height:42px}.leadPeriodButtons button.selected{background:#4f46e5;color:#fff;border-color:#4f46e5}.leadFinder #leadStatus{min-height:20px}.timePresets button{min-height:40px}
 
 .modalrow a.primary,.modalrow a.secondary{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box}.recentHeading{flex-wrap:wrap;gap:12px}.recentHeading select{max-width:100%;padding:10px;border:1px solid #dce3ef;border-radius:10px;background:white}.recentPill{white-space:normal}
+
+.searchFeedback{margin:0 0 20px;padding:16px 20px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;color:#273569;line-height:1.6}.searchFeedback[data-state="blocked"],.searchFeedback[data-state="error"]{background:#fff8eb;border-color:#eacb8b;color:#714c16}.searchFeedback[data-state="loading"]{opacity:.8}#cloudSetup{padding:12px 0;line-height:1.8}
