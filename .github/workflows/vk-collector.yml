@@ -1,0 +1,49 @@
+name: Collect VK communities
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Collect and verify
+        env:
+          VK_SERVICE_TOKEN: ${{ secrets.VK_SERVICE_TOKEN }}
+        run: node server/run-continuous.mjs
+      - name: Save checkpoint and public feed
+        run: |
+          git config user.name 'VK Leads Collector'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add collector-data/state.json dist/community-feed.json
+          git commit -m 'Update verified community feed'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+          retention-days: 1
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
