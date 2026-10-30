@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {collectOnce} from '../server/continuous.mjs';
+import {collectOnce,compactState} from '../server/continuous.mjs';
 import {validateFeed} from '../dist/hosted-feed.js';
 import {filterGroups} from '../dist/core.js';
 
@@ -45,4 +45,17 @@ test('Unavailable wall never publishes a new group',async()=>{
  const f=fixture(),api=f.api;f.api=(m,p)=>m==='wall.get'?Promise.reject(Error('denied')):api(m,p);
  let r=await collectOnce(f);f.tick();r=await collectOnce({...f,previous:r.state});f.tick();r=await collectOnce({...f,previous:r.state});
  assert.deepEqual(r.feed.groups,[]);assert.ok(!JSON.stringify(r).includes('denied'));
+});
+test('Compaction retains active window, bounds pending history and never reuses removed baseline IDs',()=>{
+ const now=1000000000,state={config:{startId:10000},records:{}};
+ for(let id=1;id<=12000;id++)state.records[id]={id,firstChecked:now-1000,everReturned:id%2===0};
+ compactState(state,now);
+ assert.ok(Object.keys(state.records).length<=2501);
+ assert.ok(state.records[10000]);assert.ok(state.records[12000]);assert.equal(state.records[2],undefined);
+});
+test('Resynchronization after a gap starts a new baseline and never fabricates historical groups',async()=>{
+ const f=fixture();let r=await collectOnce(f);
+ r.state.lastFrontierCheck=f.clock()-7*3600000;
+ r=await collectOnce({...f,previous:r.state,discover:async()=>({id:10000})});
+ assert.equal(r.state.config.startId,10001);assert.equal(r.state.resyncs,1);assert.deepEqual(r.feed.groups,[]);
 });

@@ -1,0 +1,2 @@
+{"name":"vk-design-radar","private":true,"type":"module","scripts":{"start":"node serve.mjs","test":"node --test --test-isolation=none tests/*.test.mjs"}}
+
