@@ -22,6 +22,12 @@ export function timeWindow(period,now=Date.now(),minHours=0,maxHours=3){
 // A creation timestamp is accepted only from an adapter with explicit provenance.
 // VK search, firstSeen, first post and community ID never establish creation time.
 export function creationTimestamp(g,allowDemo=false){const c=g.creation;if(!c||!Number.isFinite(c.at)||c.at<=0||c.precision!=='second')return null;if(c.kind==='demo')return allowDemo&&g.demo===true?c.at:null;return c.kind==='confirmed'&&typeof c.source==='string'&&c.source.trim()?c.at:null;}
+export function hasCandidateInterval(g){
+ const a=g.observation?.appearance,v=g.observation?.verdict;
+ if(a?.kind==='candidate')return ['candidate_today','candidate_other_day'].includes(v);
+ return a?.kind==='frontier_candidate'&&['frontier_today','frontier_other_day'].includes(v)&&a.method==='frontier_transition'&&
+   Number.isSafeInteger(a.lowerId)&&g.id>a.lowerId&&['placeholder','omitted'].includes(a.previousResponse)&&Number.isInteger(a.priorChecks)&&a.priorChecks>=1;
+}
 export function filterGroups(groups,f,now=Date.now()){
  const window=timeWindow(f.period,now,f.minHours,f.maxHours);
  const timestamp=g=>f.dateBasis==='created'?creationTimestamp(g,f.allowDemo===true):f.dateBasis==='appeared'?g.observation?.appearance?.to:g.firstSeen;
@@ -34,7 +40,7 @@ export function filterGroups(groups,f,now=Date.now()){
  if(f.exact&&!(g.posts>=2&&g.posts<=3&&g.avatar===true&&g.cover===true))return false;
  if(f.canMessage&&g.canMessage!==true)return false;
  if(f.query&&!`${g.name} ${g.city||''} ${g.category||''}`.toLowerCase().includes(f.query.toLowerCase()))return false;
- if(f.dateBasis==='appeared'){const o=g.observation,a=o?.appearance;if(!window||!['candidate_today','candidate_other_day'].includes(o?.verdict)||a?.kind!=='candidate'||!Number.isFinite(a.from)||!Number.isFinite(a.to)||a.from>a.to||a.from<window.from||a.to>window.to||g.available!==true)return false;}
+ if(f.dateBasis==='appeared'){const a=g.observation?.appearance;if(!window||!hasCandidateInterval(g)||!Number.isFinite(a.from)||!Number.isFinite(a.to)||a.from>a.to||a.from<window.from||a.to>window.to||g.available!==true)return false;}
  if(f.dateBasis!=='id'&&(f.period||f.dateBasis==='created')){const at=timestamp(g);if(!window||!Number.isFinite(at)||at<window.from||at>window.to)return false;}
  return true;
  }).sort((a,b)=>f.sort==='id'?b.id-a.id:f.sort==='new'?(timestamp(b)||0)-(timestamp(a)||0):score(b).value-score(a).value);}

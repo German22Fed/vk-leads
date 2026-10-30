@@ -25,7 +25,7 @@ else try{
   await writeFile(file('dist/community-feed.tmp'),JSON.stringify(feed));
   await rename(file('collector-data/state.tmp'),file('collector-data/state.json'));
   await rename(file('dist/community-feed.tmp'),file('dist/community-feed.json'));
-  log.log(`Цикл ${feed.cycles}: проверено ID ${feed.checkedIds}, подходящих карточек ${feed.groups.length}.`);return 0;
+  log.log(`Цикл ${feed.cycles}: проверено ID ${feed.observation.checked}, доступны ${feed.observation.usable}, заглушки ${feed.observation.deleted}, подходящих карточек ${feed.groups.length}.`);return 0;
 }catch{await publishFailure('collection_failed');log.error('Сбор не завершён. Проверьте доступ ключа к groups.getById и wall.get. Предыдущие данные сохранены; состояние ошибки опубликовано.');return 1;}
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))process.exitCode=await runContinuous();

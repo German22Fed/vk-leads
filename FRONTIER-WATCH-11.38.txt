@@ -1,0 +1,39 @@
+VK Leads 11.38 — frontier transition candidates
+
+Why the previous feed remained empty
+The live VK API returned DELETED placeholders for future/unknown IDs rather
+than omitting those IDs. Requiring two omitted responses could never qualify
+those rows. Treating a tombstone as proof of nonexistence is also incorrect.
+
+New separate evidence type: frontier_candidate
+- Start from a freshly discovered approximate highest readable ID, with no
+  manually supplied seed. Migration starts a fresh baseline; old records are
+  never retrospectively labelled new.
+- Persist per-ID probes beyond that frontier. A later usable group must have
+  a previous omitted/generic-placeholder response, at least 30 seconds and no
+  more than one hour before the new request, and exceed the highest readable
+  ID from the previous cycle.
+- Known usable, named deleted/banned, incomplete and previously withdrawn IDs
+  cannot become new frontier candidates. A previously public noncommercial
+  group renamed to a commercial name also cannot qualify.
+- Re-read candidate profiles and the first/tail wall posts. Exclude any direct
+  original post earlier than the observation interval, inaccessible walls,
+  closed/deactivated groups, unsuitable names and groups above 500 members.
+- Deduplicate by numeric ID; retain the first interval. Period filtering
+  requires the entire interval to fit the selected hour/1–3 hours/Moscow day.
+- Token remains only in Actions Secrets. No message sending was changed.
+
+Limits
+This is a heuristic for fresh leads, not a registration timestamp. Generic
+placeholders also describe previously unavailable IDs, and the inferred top
+ID can contain gaps. A hidden/recovered group with no visible old content can
+pass these checks. The UI labels frontier candidates and preserves creation
+time as unknown; the confirmed-creation filter still excludes them.
+No complete coverage or guarantee of chronological ID assignment is claimed.
+
+Tests
+112 automated checks passed before deployment, including live-shaped generic
+tombstones, transitions, old posts, niche filters, duplicates, restoration,
+restart, migration, transport failures and time-window evidence validation.
+Synthetic tests are not evidence of live results; the live check is recorded
+separately after GitHub Actions runs.

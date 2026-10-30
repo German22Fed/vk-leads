@@ -51,8 +51,9 @@ export function recordBatch(state, ids, rows, at, startedAt = at) {
   }
 }
 export function verdict(rec, now = Date.now()) {
-  if (!rec.appearance || rec.appearance.kind !== 'candidate') return 'baseline';
+  if (!rec.appearance || !['candidate','frontier_candidate'].includes(rec.appearance.kind)) return 'baseline';
   if (rec.oldestObservedPost && rec.oldestObservedPost < rec.appearance.from) return 'older';
+  if(rec.appearance.kind==='frontier_candidate')return moscowDay(rec.appearance.from)===moscowDay(now)&&moscowDay(rec.appearance.to)===moscowDay(now)?'frontier_today':'frontier_other_day';
   if (moscowDay(rec.appearance.from) === moscowDay(now) && moscowDay(rec.appearance.to) === moscowDay(now)) return 'candidate_today';
   return 'candidate_other_day';
 }
@@ -66,9 +67,10 @@ export function publicRecord(rec, now) {
   }};
 }
 export class Collector {
-  constructor({ storage, api, clock = Date.now, maxRecords = Infinity }) {
+  constructor({ storage, api, clock = Date.now, maxRecords = Infinity, onBatch=()=>{} }) {
     this.storage = storage; this.maxRecords = maxRecords; this.api = api; this.clock = clock;
     this.state = initialState(); this.busy = false; this.running = false;
+    this.onBatch=onBatch;
     this.timer = null; this.message = 'Сборщик остановлен'; this.progress = null;
   }
   async load() {
@@ -135,7 +137,9 @@ export class Collector {
         run.deleted+=observed.filter(isDeletedMarker).length;
         run.usable+=observed.filter(isUsableGroup).length;
         run.omitted+=batch.length-observed.length;
-        recordBatch(this.state, batch, rows.filter(r=>batch.includes(r.id)), this.clock(), started);
+        const finished=this.clock();
+        recordBatch(this.state, batch, observed, finished, started);
+        await this.onBatch({state:this.state,ids:batch,rows:observed,from:started,to:finished});
         run.checked += batch.length;
         await this.save();
       }
