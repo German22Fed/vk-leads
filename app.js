@@ -1,9 +1,9 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.35';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.35';
-import {getBridge} from './vk-start.js?v=11.35';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.35';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.35';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.35';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.35.1';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.35.1';
+import {getBridge} from './vk-start.js?v=11.35.1';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.35.1';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.35.1';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.35.1';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};

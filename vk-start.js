@@ -1,4 +1,4 @@
-import {browserBridge, startVkLaunch} from './vk-connection.js?v=11.35';
+import {browserBridge, startVkLaunch} from './vk-connection.js?v=11.35.1';
 
 // This module also runs from <head>, independently of app.js and its UI.
 // Authorization later reuses the same initialized bridge.
