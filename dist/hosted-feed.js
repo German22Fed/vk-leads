@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.37';
-import {hasCandidateInterval} from './core.js?v=11.38';
+import {isLeadFitGroup} from './vk-data.js?v=11.39';
+import {hasCandidateInterval} from './core.js?v=11.39';
 export function validateFeed(data,now=Date.now()){
   if(data?.version!==1||!Array.isArray(data.groups)||!['ok','waiting'].includes(data.status))throw Error('Некорректный ответ сборщика.');
   if(data.status==='waiting')return {...data,groups:[],stale:false};
@@ -38,7 +38,7 @@ export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,
         const data=validateFeed(raw,clock());
         const count=onData(data);
         const result=feedOutcome(data,count);onState(result);return result;
-      }catch(e){const result={kind:'error',title:'Не удалось обновить подбор',message:e.name==='TimeoutError'||e.name==='AbortError'?'Сервер не ответил за 15 секунд. Нажмите «Найти сообщества» ещё раз.':e instanceof TypeError?'Нет соединения с лентой. Проверьте интернет и повторите попытку.':e.message,setup:true};onState(result);return result;}
+      }catch(e){const result={kind:'error',title:'Не удалось обновить подбор',message:e.name==='TimeoutError'||e.name==='AbortError'?'Сервер не ответил за 15 секунд. Нажмите «Обновить подходящие сообщества» ещё раз.':e instanceof TypeError?'Нет соединения с лентой. Проверьте интернет и повторите попытку.':e.message,setup:true};onState(result);return result;}
       finally{pending=null;}
     });
     return pending;
@@ -56,14 +56,16 @@ export function initHostedFeed(onUpdate,_seed,options){
   const mainButton=document.getElementById('searchBtn'),summary=document.getElementById('searchFeedback');
   const refresh=createFeedLoader({onData:data=>{onUpdate({connected:false,groups:data.groups,hosted:true});return Number(document.getElementById('listCount').textContent)||0;},onState:s=>{
     const loading=s.kind==='loading';button.disabled=mainButton.disabled=loading;
-    button.textContent=loading?'Проверяем ленту…':'Обновить подходящие сообщества';mainButton.textContent=loading?'Проверяем ленту…':'Найти сообщества';
+    button.textContent=loading?'Проверяем ленту…':'Обновить подходящие сообщества';mainButton.textContent=loading?'Проверяем ленту…':'Обновить подходящие сообщества';
     badge.textContent=s.title;status.textContent=s.message;document.getElementById('cloudSetup').hidden=!s.setup;
     if(summary){summary.hidden=false;summary.textContent=s.title+'. '+s.message;summary.dataset.state=s.kind;}
   }});
   const search=()=>{document.getElementById('dateBasis').value='appeared';options.onShowCandidates?.(document.getElementById('period').value||'today');return refresh();};
   options.onRegisterSearch?.(search);
-  el.querySelectorAll('[data-cloud-period]').forEach(b=>b.onclick=()=>{options.onShowCandidates?.(b.dataset.cloudPeriod);void search();});
+  // Period buttons only choose a criterion; refresh happens from the explicit update button.
+  el.querySelectorAll('[data-cloud-period]').forEach(b=>b.onclick=()=>options.onShowCandidates?.(b.dataset.cloudPeriod));
   button.onclick=()=>void search();
   void refresh();
   setInterval(()=>{if(!document.hidden)void refresh();},60000);
 }
+

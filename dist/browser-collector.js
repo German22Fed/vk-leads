@@ -1,8 +1,8 @@
-import {Collector, initialState} from './collector-engine.js?v=11.36';
+import {Collector, initialState} from './collector-engine.js?v=11.39';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.36';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.36';
-import {refreshObservation} from './period-search.js?v=11.36';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.39';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.39';
+import {refreshObservation} from './period-search.js?v=11.39';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
 export const AUTO_QUERIES=['ресницы','брови','маникюр','салон красоты','парикмахерская','психолог','психология','мебель на заказ','кухни на заказ','диваны','ремонт квартир','магазин','клиника','стоматология','кафе','фотограф','студия'];
@@ -53,7 +53,7 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
   $('collectorPanel').innerHTML=`<div class="leadFinder"><div class="sectionheading"><div><h2>Новые сообщества для дизайна</h2><p>Показываем только подходящие коммерческие названия из VK.</p></div><span id="monitorBadge">Не запущено</span></div>
   <p class="collectorHint">Выберите период появления и нажмите одну кнопку. Система будет наблюдать VK, проверять карточки и оставлять только салоны, магазины, услуги, мебель, экспертов и другие коммерческие направления.</p>
   <div class="leadPeriodButtons" role="group" aria-label="Период появления"><button class="secondary" id="leadPeriod1">Появились за последний час</button><button class="secondary" id="leadPeriod13">Появились за 1–3 часа</button><button class="secondary" id="leadPeriodToday">Появились сегодня</button></div>
-  <div class="modalrow"><button id="leadFind" class="primary">Найти подходящие сообщества</button><button id="leadStop" class="secondary" disabled>Остановить</button><button id="leadConnect" class="secondary">Подключить VK</button></div><button id="leadSnapshot" class="textbtn">Последние ID — дата неизвестна</button>
+  <div class="modalrow"><button id="leadFind" class="primary">Обновить подходящие сообщества</button><button id="leadStop" class="secondary" disabled>Остановить</button><button id="leadConnect" class="secondary">Подключить VK</button></div><button id="leadSnapshot" class="textbtn">Последние ID — дата неизвестна</button>
   <p id="leadStatus" role="status" aria-live="polite">Для поиска откройте Mini App внутри VK и подключите аккаунт.</p></div>
   <div id="collectorLegacy" hidden><div class="sectionheading"><div><h2>Ручной поиск и наблюдение</h2><p>Подбор новых возможностей — прямо в ленте.</p></div><span id="monitorLegacyBadge">Остановлено</span></div>
   <p class="collectorHint">Свежие группы без ввода ID: находим примерную верхнюю границу номеров ВК и загружаем сообщества от неё назад. Дата создания этих групп неизвестна. Затем можно наблюдать появление следующих ID.</p>
@@ -219,3 +219,4 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
   chooseLeadPeriod('today');
   render();
 }
+
