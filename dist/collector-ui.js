@@ -1,5 +1,5 @@
-import {initBrowserCollector} from './browser-collector.js?v=11.36';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.36';
+import {initBrowserCollector} from './browser-collector.js?v=11.39';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.39';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const when = n => n ? new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК' : '—';
@@ -24,7 +24,7 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
     <div class="leadFinder"><div class="sectionheading"><div><h2>Новые сообщества для дизайна</h2><p>Показываем только подходящие коммерческие названия из VK.</p></div><span id="collectorBadge">Проверяю сервер…</span></div>
     <p class="collectorHint">Выберите период появления и нажмите одну кнопку. Система проверит VK и оставит только салоны, магазины, услуги, мебель, экспертов и другие коммерческие направления.</p>
     <div class="leadPeriodButtons" role="group" aria-label="Период появления"><button class="secondary" id="leadPeriod1">Появились за последний час</button><button class="secondary" id="leadPeriod13">Появились за 1–3 часа</button><button class="secondary" id="leadPeriodToday">Появились сегодня</button></div>
-    <div class="modalrow"><button id="leadFind" class="primary">Найти подходящие сообщества</button><button id="leadConnect" class="secondary">Подключить VK</button></div>
+    <div class="modalrow"><button id="leadFind" class="primary">Обновить подходящие сообщества</button><button id="leadConnect" class="secondary">Подключить VK</button></div>
     <p id="leadStatus" role="status" aria-live="polite">Проверяем доступность локального поиска…</p></div>
     <div id="collectorLegacy" hidden>
     <div class="sectionheading"><div><h2>Сборщик новых ID <span>Эксперимент</span></h2><p>Реальные запросы ВК и история проверок на вашем компьютере.</p></div><span id="collectorLegacyBadge">Проверяю сервер…</span></div>
@@ -138,3 +138,4 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
   chooseLeadPeriod('today');
   void update(); setInterval(()=>{if(!document.hidden)void update();},4000);
 }
+
