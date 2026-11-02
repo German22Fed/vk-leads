@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.38';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.38';
-import {getBridge} from './vk-start.js?v=11.38';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.38';
-import {initHostedFeed} from './hosted-feed.js?v=11.38';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.39';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.39';
+import {getBridge} from './vk-start.js?v=11.39';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.39';
+import {initHostedFeed} from './hosted-feed.js?v=11.39';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.38';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.38';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.39';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.39';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -70,7 +70,8 @@ function selectPeriod(period){
 }
 function reset(){for(const id of ['onlyNew','exact','canMessage'])$(id).checked=false;$('filterQuery').value='';freshFilter=false;render();}
 for(const id of ['filterQuery','period','sort','onlyNew','exact','canMessage','dateBasis','minHours','maxHours'])$(id).addEventListener(['filterQuery','minHours','maxHours'].includes(id)?'input':'change',render);
-document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{selectPeriod(b.dataset.period);if(hostedFeed&&hostedSearch)void hostedSearch();});
+// Period controls only choose a criterion. The explicit update button performs the request.
+document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>selectPeriod(b.dataset.period));
 $('dateBasis').addEventListener('change',()=>{freshFilter=false;snapshotMode=false;render();});
 $('resetFilters').onclick=reset;$('emptyReset').onclick=reset;
 document.querySelectorAll('[data-view]').forEach(el=>el.onclick=()=>{view=el.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x===el));$('crumb').textContent=el.textContent.trim().replace(/^[^А-Я]+/,'');$('mainContent').hidden=view==='templates';$('templateView').hidden=view!=='templates';if(view==='templates')$('templateText').value=template;if(view==='pipeline'||view==='saved')reset();render();});
@@ -304,3 +305,4 @@ let collectorSignature='';
  onShowCandidates:(period='today')=>selectPeriod(period),
  onReset:()=>{live=live.map(g=>{if(g.source!=='Наблюдение Mini App')return g;const {observation,...rest}=g;return rest;});persist();render();}
 });
+
