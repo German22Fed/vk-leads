@@ -5,6 +5,7 @@ import {normalizeGroup} from '../dist/core.js';
 import {beginFrontierCycle,observeFrontierBatch,compactFrontierWatch} from './frontier-watch.mjs';
 
 const DAY=86400000, HOUR=3600000;
+export const RECHECK_LIMIT=250;
 const candidate=r=>['candidate','frontier_candidate'].includes(r.appearance?.kind);
 const fields='name,screen_name,photo_200,deactivated,members_count,city,activity,description,has_photo,cover,can_message';
 export function compactState(state,now){
@@ -51,18 +52,26 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
   // first prevents one set of candidates starving all the following ones.
   const candidates=Object.values(engine.state.records).filter(r=>candidate(r) && !r.frontierWithdrawn &&
     r.appearance.to>=clock()-7*DAY && r.group && isLeadFitGroup(r.group) && verdict(r,clock())!=='older')
-    .sort((a,b)=>(a.group.verifiedAt||0)-(b.group.verifiedAt||0)).slice(0,40);
+    .sort((a,b)=>{
+      // Reserve verification capacity for the selected day's leads first.
+      const day=Math.floor((clock()+10800000)/DAY);
+      const today=r=>Math.floor((r.appearance.from+10800000)/DAY)===day;
+      return Number(today(b))-Number(today(a)) || (a.group.verifiedAt||0)-(b.group.verifiedAt||0);
+    }).slice(0,RECHECK_LIMIT);
   if(candidates.length){
-    const ids=candidates.map(r=>r.id), requested=[1,...ids];
+    for(let offset=0;offset<candidates.length;offset+=99){
+    const batch=candidates.slice(offset,offset+99);
+    const ids=batch.map(r=>r.id), requested=[1,...ids];
     const rows=groupRows(await api('groups.getById',{group_ids:requested.join(','),fields}),requested,{allowIncomplete:true});
     if(!rows.some(r=>r.id===1&&isUsableGroup(r)))throw Error('Контрольная группа недоступна. База не изменена.');
     const map=new Map(rows.map(r=>[r.id,r]));
-    for(const rec of candidates){
+    for(const rec of batch){
       const row=map.get(rec.id);
       rec.available=isLeadFitGroup(row)&&!row.is_closed;
       if(!rec.available)continue;
       rec.group={...rec.group,...normalizeGroup(row),verifiedAt:clock(),verification:'groups.getById'};
       await engine.inspectWall(rec);
+    }
     }
   }
   const now=clock();
@@ -75,6 +84,8 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
   engine.state.runs=engine.state.runs.slice(0,10).map(({error,...r})=>r);
   return {state:engine.state,feed:{version:1,status:'ok',updatedAt:now,startedAt:engine.state.bootstrap.at,
     observation:{checked:run.checked,returned:run.returned,deleted:run.deleted,usable:run.usable,omitted:run.omitted,incomplete:run.incomplete,tracked:Object.keys(engine.state.records).length,frontierProbes:Object.keys(engine.state.frontierWatch.probes).length,frontierCandidates:groups.filter(g=>g.observation.appearance.kind==='frontier_candidate').length},
+    verification:{limit:RECHECK_LIMIT,attempted:candidates.length,published:groups.length},
     cycles:engine.state.cycles,checkedIds:Object.keys(engine.state.records).length,groups,
     note:'Кандидаты по росту ID и переходу из недоступного ответа в существующее сообщество. Время регистрации не подтверждено; восстановленные или ранее скрытые группы полностью исключить нельзя.'}};
 }
+
