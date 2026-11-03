@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.41';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.41';
-import {getBridge} from './vk-start.js?v=11.41';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.41';
-import {initHostedFeed} from './hosted-feed.js?v=11.41';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.42';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.42';
+import {getBridge} from './vk-start.js?v=11.42';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.42';
+import {initHostedFeed} from './hosted-feed.js?v=11.42';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.41';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.41';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.42';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.42';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -305,4 +305,3 @@ let collectorSignature='';
  onShowCandidates:(period='')=>selectPeriod(period),
  onReset:()=>{live=live.map(g=>{if(g.source!=='Наблюдение Mini App')return g;const {observation,...rest}=g;return rest;});persist();render();}
 });
-

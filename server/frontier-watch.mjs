@@ -17,7 +17,7 @@ export function observeFrontierBatch({state,ids,rows,from,to}){
       const rec=state.records[id];
       if(!p.everUsable && !p.disqualified && id>watch.cycleFloor &&
         Number.isFinite(p.lastUnavailableFrom) && from-p.lastUnavailableAt>=30000 &&
-        from-p.lastUnavailableAt<=3600000 && isLeadFitGroup(row) && row.is_closed!==1 && row.is_closed!==2 && rec){
+        from-p.lastUnavailableAt<=86400000 && row.is_closed!==1 && row.is_closed!==2 && rec){
         // Never reinterpret existing baseline data during migration. This probe
         // belongs to the new watch, established with a fresh frontier snapshot.
         if(rec.firstReturned===to && rec.appearance?.kind==='baseline'){

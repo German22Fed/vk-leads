@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {collectOnce,compactState,selectRechecks} from '../server/continuous.mjs';
+import {collectOnce,compactState,selectRechecks,scanIds,coverageReport} from '../server/continuous.mjs';
 import {validateFeed,feedOutcome} from '../dist/hosted-feed.js';
 import {filterGroups,creationTimestamp} from '../dist/core.js';
 
@@ -21,9 +21,9 @@ function fixture(){
 test('VK placeholders are stored as frontier probes without publishing fake cards',async()=>{
  const api=async(m,p)=>({groups:p.group_ids.split(',').map(Number).map(id=>({id,name:id===1?'Control':'delete'}))});
  let r=await collectOnce({api,discover:async()=>({id:100}),clock:()=>Date.UTC(2026,9,30,10)});
- assert.equal(r.feed.observation.checked,2000);assert.equal(r.feed.observation.deleted,2000);
+ assert.equal(r.feed.observation.checked,6000);assert.equal(r.feed.observation.deleted,6000);
  assert.equal(r.feed.observation.omitted,0);assert.equal(r.feed.observation.tracked,0);
- assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.frontierProbes,2000);assert.equal(feedOutcome(r.feed).kind,'ready');
+ assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.frontierProbes,6000);assert.equal(feedOutcome(r.feed).kind,'ready');
  // A deleted/unavailable placeholder is never evidence of nonexistence.
  r=await collectOnce({api,previous:r.state,clock:()=>Date.UTC(2026,9,30,10,15)});
  assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.tracked,0);
@@ -98,11 +98,52 @@ test('Hourly and 1-3h candidates precede a large morning backlog; fresh checks a
  const make=(id,age)=>({id,available:true,appearance:{kind:'frontier_candidate',from:now-age-60000,to:now-age},group:{id,name:'Мебель на заказ '+id,members:12,verifiedAt:now-7200000},wallCheckedAt:now-7200000});
  for(let id=100;id<500;id++)records[id]=make(id,5*3600000);
  records[501]=make(501,1800000);records[502]=make(502,7200000);
- const chosen=selectRechecks(records,now);assert.equal(chosen.length,250);
+ const chosen=selectRechecks(records,now);assert.equal(chosen.length,400);
  assert.deepEqual(chosen.slice(0,2).map(r=>r.id),[501,502]);
  records[501].group.verifiedAt=records[501].wallCheckedAt=now;
  assert.equal(selectRechecks(records,now).some(r=>r.id===501),false);
 });
 
+test('Heavy hourly traffic cannot starve the 1–3h queue',()=>{
+ const now=Date.UTC(2026,10,3,17),records={};
+ for(let id=100;id<1100;id++)records[id]={id,available:true,appearance:{kind:'frontier_candidate',from:now-(id<600?1800000:7200000),to:now-1000},group:{id,name:'Мебель на заказ',members:5}};
+ const selected=selectRechecks(records,now);
+ assert.equal(selected.length,400);assert.ok(selected.filter(r=>r.id>=600).length>=150);
+});
+
+test('Expanded scan covers IDs beyond the former 2000 limit and respects integer ceiling',()=>{
+ const ids=scanIds({config:{startId:100}});
+ assert.equal(ids.length,6000);assert.equal(ids[0],100);assert.equal(ids.at(-1),6099);
+ assert.equal(scanIds({config:{startId:2147483640}}).at(-1),2147483647);
+});
+
+test('Provisional name can become a lead after moving past the scan; age is never reset',async()=>{
+ let now=Date.UTC(2026,10,3,10),phase=0;
+ const api=async(m,p)=>m==='wall.get'?{count:0,items:[]}:{groups:p.group_ids.split(',').map(Number).map(id=>id===1?{id,name:'Control'}:id===101&&phase?{id,name:phase===1?'Новая группа':'Маникюр Анна',members_count:3,is_closed:0}:{id,name:'DELETED'})};
+ const opts={api,clock:()=>now,discover:async()=>({id:100})};
+ let r=await collectOnce(opts);phase=1;now+=600000;r=await collectOnce({...opts,previous:r.state});
+ const appearance=structuredClone(r.state.records[101].appearance);assert.equal(r.feed.groups.length,0);assert.equal(appearance.kind,'frontier_candidate');
+ r.state.config.startId=5000;phase=2;now+=1200000;r=await collectOnce({...opts,previous:r.state});
+ assert.equal(r.feed.groups.length,1);assert.equal(r.feed.groups[0].name,'Маникюр Анна');assert.deepEqual(r.state.records[101].appearance,appearance);
+});
+
+test('A verified feed is not truncated to 500; unverified backlog is explicit',async()=>{
+ let now=Date.UTC(2026,10,3,10),visible=false;
+ const api=async(m,p)=>m==='wall.get'?{count:0,items:[]}:{groups:p.group_ids.split(',').map(Number).map(id=>id===1?{id,name:'Control'}:visible&&id>=101&&id<=800?{id,name:'Мебель на заказ '+id,members_count:3,is_closed:0}:{id,name:'DELETED'})};
+ const opts={api,clock:()=>now,discover:async()=>({id:100})};
+ let r=await collectOnce(opts);now+=600000;visible=true;r=await collectOnce({...opts,previous:r.state});
+ assert.ok(r.feed.coverage.counts.pendingVerification>0);
+ now+=120000;r=await collectOnce({...opts,previous:r.state});
+ assert.equal(r.feed.groups.length,700);assert.equal(r.feed.coverage.counts.pendingVerification,0);
+ assert.equal(r.feed.coverage.counts.published,700);assert.equal(new Set(r.feed.groups.map(g=>g.id)).size,700);
+ assert.equal(r.feed.coverage.allVkCovered,false);
+});
+
+test('Coverage reports boundary uncertainty without assigning a guessed hour',()=>{
+ const now=Date.UTC(2026,10,3,10),g={observation:{appearance:{from:now-7200000,to:now-1000}}};
+ const report=coverageReport({records:{}},now,[g]);
+ assert.equal(report.periods['1h'].published,0);assert.equal(report.periods['1h'].uncertainBoundary,1);
+ assert.equal(report.periods['today'].published,1);
+});
 
 

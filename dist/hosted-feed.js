@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.41';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.41';
+import {isLeadFitGroup} from './vk-data.js?v=11.42';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.42';
 export function validateFeed(data,now=Date.now()){
   if(data?.version!==1||!Array.isArray(data.groups)||!['ok','waiting'].includes(data.status))throw Error('Некорректный ответ сборщика.');
   if(data.status==='waiting')return {...data,groups:[],stale:false};
@@ -23,6 +23,16 @@ export function feedOutcome(data,count=data.groups.length){
   if(data.stale)return {kind:'error',title:'Сборщик давно не обновлялся',message:'Больше часа нет успешных проверок. Устаревшие карточки скрыты. Откройте журнал сборщика.',setup:true};
   if(data.observation?.checked>0 && data.observation.tracked===0 && !data.observation.frontierProbes)return {kind:'blocked',title:'VK отвечает, но история новых ID не накоплена',message:`Проверено ID: ${data.observation.checked}. Доступных сообществ: ${data.observation.usable}. Ответов об удалённых или недоступных группах: ${data.observation.deleted}. Такие ответы не доказывают, что сообщество ещё не создано, и не попадают в ленту. Сборщик продолжит проверки по расписанию, но появление карточек пока не подтверждено.`,setup:false};
   return {kind:'ready',title:count?'Свежие кандидаты обновлены':'Подходящих кандидатов пока нет',message:`В выбранном периоде с текущими фильтрами: ${count}. Всего в общей ленте: ${data.groups.length}. Последняя успешная проверка: ${new Date(data.updatedAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} МСК.`+(data.observation?` Проверено ID: ${data.observation.checked}; доступны: ${data.observation.usable}; заглушки: ${data.observation.deleted}.`:'')+(count?' Дата регистрации не подтверждена.':' Карточки появятся только после подходящего перехода ID и проверки стены. Изменение фильтра не создаёт новые данные.'),setup:false};
+}
+export function coverageText(data){
+  const c=data.coverage;if(!c)return 'Полная статистика охвата появится после следующего запуска сборщика.';
+  const n=c.counts;
+  return `Охват последнего прохода: ${c.checkedThisPass} ID (${c.scanStart}–${c.scanEnd}). Это часть VK, не все новые сообщества. `+
+    (c.gapSeconds!==null?`Пауза между проходами: ${Math.round(c.gapSeconds/60)} мин. `:'')+
+    `В сохранённой базе: ${c.tracked}. Готовы к показу: ${n.published}; ждут проверки: ${n.pendingVerification}; не подходят по названию: ${n.irrelevant}; не подходят по аудитории: ${n.audience}; старые посты: ${n.oldPosts}; недоступны/ошибка стены: ${n.unavailable+n.wallError+n.withdrawn}; без интервала: ${n.withoutInterval}. `+
+    `Пересекают границы периода и не включены в точную подборку: последний час — ${c.periods['1h'].uncertainBoundary}, 1–3 часа — ${c.periods['1-3h'].uncertainBoundary}. `+
+    (c.retentionDropped?`Удалено из истории из-за ограничения хранения: ${c.retentionDropped}. `:'')+
+    'Количество карточек не равно числу созданных в VK групп. Интервал наблюдения не подтверждает регистрацию.';
 }
 export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,url=new URL('./community-feed.json',import.meta.url),timeoutMs=15000}){
   let pending=null;
@@ -50,11 +60,13 @@ export function initHostedFeed(onUpdate,_seed,options){
     <div class="leadPeriodButtons"><button class="secondary" data-cloud-period="">Все актуальные</button><button class="secondary" data-cloud-period="1h">Появились за последний час</button><button class="secondary" data-cloud-period="1-3h">Появились за 1–3 часа</button><button class="secondary" data-cloud-period="today">Появились сегодня</button></div>
     <button class="primary" id="cloudRefresh">Обновить подходящие сообщества</button>
     <p id="cloudStatus" role="status" aria-live="polite"></p>
+    <details><summary>Охват поиска и причины отсева</summary><p id="cloudCoverage"></p></details>
     <div id="cloudSetup" hidden><p>Подключение требуется один раз владельцу приложения. Посетителям ключ не нужен.</p><a class="link" href="https://github.com/German22Fed/vk-leads/settings/secrets/actions" target="_blank" rel="noopener noreferrer">Добавить VK_SERVICE_TOKEN ↗</a> · <a class="link" href="https://github.com/German22Fed/vk-leads/actions/workflows/vk-collector.yml" target="_blank" rel="noopener noreferrer">Запустить сборщик / журнал ошибок ↗</a></div>
     <small>Кандидаты у растущей верхней границы ID: раньше VK возвращал заглушку, теперь — доступное сообщество. Начальная база, повторы и обнаруженные старые посты исключаются. Период — интервал этого перехода, не дата регистрации. Ранее скрытые или восстановленные группы полностью исключить нельзя. Проверки по расписанию примерно раз в 15 минут; возможны задержки.</small>`;
   const status=document.getElementById('cloudStatus'),badge=document.getElementById('cloudBadge'),button=document.getElementById('cloudRefresh');
   const mainButton=document.getElementById('searchBtn'),summary=document.getElementById('searchFeedback');
   const refresh=createFeedLoader({onData:data=>{
+    document.getElementById('cloudCoverage').textContent=coverageText(data);
     onUpdate({connected:false,groups:data.groups,hosted:true});
     document.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
       b.dataset.label??=b.textContent;
@@ -78,4 +90,3 @@ export function initHostedFeed(onUpdate,_seed,options){
   void refresh();
   setInterval(()=>{if(!document.hidden)void refresh();},60000);
 }
-

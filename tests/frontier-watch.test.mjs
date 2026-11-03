@@ -19,7 +19,7 @@ function setup(){
 }
 test('Live-shaped DELETED responses become explicitly labelled frontier candidates, never creation dates',async()=>{
  const f=setup();let r=await collectOnce(f);
- assert.equal(r.feed.groups.length,0);assert.equal(r.feed.observation.frontierProbes,2000);
+ assert.equal(r.feed.groups.length,0);assert.equal(r.feed.observation.frontierProbes,6000);
  f.tick();r=await collectOnce({...f,previous:r.state});
  assert.deepEqual(r.feed.groups.map(g=>g.id),[101]);
  const g=r.feed.groups[0];assert.equal(g.observation.appearance.kind,'frontier_candidate');

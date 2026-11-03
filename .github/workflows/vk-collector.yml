@@ -17,7 +17,7 @@ jobs:
   collect:
     if: github.event.repository.private == false
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -59,4 +59,3 @@ jobs:
       - name: Report collection failure after publishing diagnostics
         if: steps.collection.outcome == 'failure'
         run: exit 1
-
