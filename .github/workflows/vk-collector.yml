@@ -1,5 +1,8 @@
 name: Collect VK communities
 on:
+  push:
+    branches: [main]
+    paths: ['server/**']
   schedule:
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
