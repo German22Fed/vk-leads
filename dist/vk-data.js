@@ -58,7 +58,9 @@ const shortLeadMarkers = new Set(['бар','spa','seo','имя','опт','тат
 const markerMatches = (name, term) => {
   if (term.includes(' ')) return name.includes(term);
   if (shortLeadMarkers.has(term)) return new RegExp(`(?:^|\\s)${term}(?:$|\\s)`, 'u').test(name);
-  return name.includes(term);
+  // A commercial stem starts a word: матизаводов is not a завод, and
+  // an incidental substring inside a personal name is not a niche.
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${term}`, 'u').test(name);
 };
 const ambiguousNoise={
   'бот':'бот(?:ы|ов|а|у|ом|ами|ах)?',
@@ -76,6 +78,7 @@ export const isLeadFitName = row => {
   if (!isClientFitName(row)) return false;
   const name = cleanGroupName(row).toLowerCase();
   if (leadNoise.some(term => noiseMatches(name,term))) return false;
+  if (/(?:работа|заработок)\s+(?:с\s+телефона|на\s+дому|без\s+вложений)|пассивный\s+доход|(?:клуб|группа)\s+любителей\s+(?:фотограф|музык|путешеств)/u.test(name)) return false;
   // A name must contain an explicit niche or commercial signal. The old
   // two-word fallback admitted names such as “Мама”, “Ozon” and gibberish.
   const hits = leadMarkers.filter(term => markerMatches(name, term));

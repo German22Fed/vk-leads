@@ -4,6 +4,11 @@ import {isLeadFitName,isLeadFitGroup} from '../dist/vk-data.js';
 
 const row = name => ({id: 1, name});
 
+test('Observed hobby, job-ad and incidental substring names do not become commercial leads',()=>{
+ for(const name of ['Клуб матизаводов Бузулука!','Злата / Работа с телефона','Клуб любителей фотографировать!!','Заработок без вложений / телефон'])assert.equal(isLeadFitName(row(name)),false,name);
+ for(const name of ['МебелИнт','Ремонт телефонов','Фотограф Анна','Клуб танцев','Автосервис Матиз','Работы по монтажу окон'])assert.equal(isLeadFitName(row(name)),true,name);
+});
+
 test('noise words never match inside delivery, work or place names',()=>{
  for(const name of ['Доставка цветов','Отделочные работы','Маникюр Чита','Детский центр Тигр','Кофейня Сливки'])assert.equal(isLeadFitName(row(name)),true,name);
  for(const name of ['Магазин ботов','Магазин читов','Студия мемов','Ставки спорт','Магазин сливы','Магазин игры'])assert.equal(isLeadFitName(row(name)),false,name);
