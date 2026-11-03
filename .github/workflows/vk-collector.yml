@@ -17,7 +17,7 @@ jobs:
   collect:
     if: github.event.repository.private == false
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -34,7 +34,10 @@ jobs:
         continue-on-error: true
         env:
           VK_SERVICE_TOKEN: ${{ secrets.VK_SERVICE_TOKEN }}
-        run: node server/run-continuous.mjs
+        run: |
+          node server/run-continuous.mjs
+          sleep 60
+          node server/run-continuous.mjs
       - name: Save checkpoint and public feed
         run: |
           git config user.name 'VK Leads Collector'
