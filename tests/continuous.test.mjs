@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {collectOnce,compactState} from '../server/continuous.mjs';
+import {collectOnce,compactState,selectRechecks} from '../server/continuous.mjs';
 import {validateFeed,feedOutcome} from '../dist/hosted-feed.js';
 import {filterGroups,creationTimestamp} from '../dist/core.js';
 
@@ -89,8 +89,19 @@ test('250 real-shaped transitions survive verification, batching, periods and re
  assert.equal(filterGroups(r.feed.groups,{period:'1h',dateBasis:'appeared'},now).length,250);
  assert.ok(r.feed.groups.every(g=>creationTimestamp(g)===null));
  now+=900000;r=await collectOnce({...opts,previous:JSON.parse(JSON.stringify(r.state))});
- assert.equal(r.feed.groups.length,250);assert.equal(r.feed.verification.attempted,250);
+ assert.equal(r.feed.groups.length,250);assert.ok(r.feed.verification.attempted<=250);
  assert.equal(filterGroups(r.feed.groups,{period:'1-3h',dateBasis:'appeared'},now).length,0);
+});
+
+test('Hourly and 1-3h candidates precede a large morning backlog; fresh checks are reused',()=>{
+ const now=Date.UTC(2026,10,3,17),records={};
+ const make=(id,age)=>({id,available:true,appearance:{kind:'frontier_candidate',from:now-age-60000,to:now-age},group:{id,name:'Мебель на заказ '+id,members:12,verifiedAt:now-7200000},wallCheckedAt:now-7200000});
+ for(let id=100;id<500;id++)records[id]=make(id,5*3600000);
+ records[501]=make(501,1800000);records[502]=make(502,7200000);
+ const chosen=selectRechecks(records,now);assert.equal(chosen.length,250);
+ assert.deepEqual(chosen.slice(0,2).map(r=>r.id),[501,502]);
+ records[501].group.verifiedAt=records[501].wallCheckedAt=now;
+ assert.equal(selectRechecks(records,now).some(r=>r.id===501),false);
 });
 
 
