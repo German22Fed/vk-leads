@@ -53,3 +53,4 @@ jobs:
       - name: Report collection failure after publishing diagnostics
         if: steps.collection.outcome == 'failure'
         run: exit 1
+
