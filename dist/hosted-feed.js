@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.40';
-import {hasCandidateInterval} from './core.js?v=11.40';
+import {isLeadFitGroup} from './vk-data.js?v=11.41';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.41';
 export function validateFeed(data,now=Date.now()){
   if(data?.version!==1||!Array.isArray(data.groups)||!['ok','waiting'].includes(data.status))throw Error('Некорректный ответ сборщика.');
   if(data.status==='waiting')return {...data,groups:[],stale:false};
@@ -54,7 +54,17 @@ export function initHostedFeed(onUpdate,_seed,options){
     <small>Кандидаты у растущей верхней границы ID: раньше VK возвращал заглушку, теперь — доступное сообщество. Начальная база, повторы и обнаруженные старые посты исключаются. Период — интервал этого перехода, не дата регистрации. Ранее скрытые или восстановленные группы полностью исключить нельзя. Проверки по расписанию примерно раз в 15 минут; возможны задержки.</small>`;
   const status=document.getElementById('cloudStatus'),badge=document.getElementById('cloudBadge'),button=document.getElementById('cloudRefresh');
   const mainButton=document.getElementById('searchBtn'),summary=document.getElementById('searchFeedback');
-  const refresh=createFeedLoader({onData:data=>{onUpdate({connected:false,groups:data.groups,hosted:true});return Number(document.getElementById('listCount').textContent)||0;},onState:s=>{
+  const refresh=createFeedLoader({onData:data=>{
+    onUpdate({connected:false,groups:data.groups,hosted:true});
+    document.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
+      b.dataset.label??=b.textContent;
+      const period=b.dataset.cloudPeriod??b.dataset.period;
+      const count=filterGroups(data.groups,{dateBasis:'appeared',period},Date.now()).length;
+      b.textContent=b.dataset.label+' · '+count;
+      b.title='Карточки в серверной ленте до дополнительных фильтров. Период наблюдения, не дата регистрации.';
+    });
+    return Number(document.getElementById('listCount').textContent)||0;
+  },onState:s=>{
     const loading=s.kind==='loading';button.disabled=mainButton.disabled=loading;
     button.textContent=loading?'Проверяем ленту…':'Обновить подходящие сообщества';mainButton.textContent=loading?'Проверяем ленту…':'Обновить подходящие сообщества';
     badge.textContent=s.title;status.textContent=s.message;document.getElementById('cloudSetup').hidden=!s.setup;
