@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {collectOnce,compactState} from '../server/continuous.mjs';
 import {validateFeed,feedOutcome} from '../dist/hosted-feed.js';
-import {filterGroups} from '../dist/core.js';
+import {filterGroups,creationTimestamp} from '../dist/core.js';
 
 function fixture(){
   let now=Date.UTC(2026,9,30,10),phase=0,failed=false;
@@ -70,3 +70,28 @@ test('Resynchronization after a gap starts a new baseline and never fabricates h
  r=await collectOnce({...f,previous:r.state,discover:async()=>({id:10000})});
  assert.equal(r.state.config.startId,10001);assert.equal(r.state.resyncs,1);assert.deepEqual(r.feed.groups,[]);
 });
+
+test('250 real-shaped transitions survive verification, batching, periods and repeated cycles',async()=>{
+ let now=Date.UTC(2026,10,3,10),visible=false;const batches=[];
+ const api=async(method,p)=>{
+  if(method==='wall.get')return {count:1,items:[{owner_id:p.owner_id,date:Math.floor(now/1000)}]};
+  const ids=p.group_ids.split(',').map(Number);batches.push(ids.length);
+  assert.ok(ids.length<=100,'VK requests must stay bounded, including the control');
+  return {groups:ids.map(id=>id===1?{id,name:'Control'}:visible&&id>=101&&id<=350?
+   {id,name:'Мебель на заказ '+id,members_count:12,is_closed:0,has_photo:1}:
+   {id,name:'DELETED',deactivated:'deleted'})};
+ };
+ const opts={api,clock:()=>now,discover:async()=>({id:100})};
+ let r=await collectOnce(opts);assert.equal(r.feed.groups.length,0);
+ now+=900000;visible=true;r=await collectOnce({...opts,previous:r.state});
+ assert.equal(r.feed.groups.length,250);assert.equal(new Set(r.feed.groups.map(g=>g.id)).size,250);
+ assert.equal(validateFeed(r.feed,now).groups.length,250);
+ assert.equal(filterGroups(r.feed.groups,{period:'1h',dateBasis:'appeared'},now).length,250);
+ assert.ok(r.feed.groups.every(g=>creationTimestamp(g)===null));
+ now+=900000;r=await collectOnce({...opts,previous:JSON.parse(JSON.stringify(r.state))});
+ assert.equal(r.feed.groups.length,250);assert.equal(r.feed.verification.attempted,250);
+ assert.equal(filterGroups(r.feed.groups,{period:'1-3h',dateBasis:'appeared'},now).length,0);
+});
+
+
+
