@@ -23,6 +23,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # A queued UI deploy must not overwrite a newer collector feed with
+          # the triggering commit's old snapshot.
+          ref: main
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static files
@@ -32,3 +36,4 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
