@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.39';
-import {hasCandidateInterval} from './core.js?v=11.39';
+import {isLeadFitGroup} from './vk-data.js?v=11.40';
+import {hasCandidateInterval} from './core.js?v=11.40';
 export function validateFeed(data,now=Date.now()){
   if(data?.version!==1||!Array.isArray(data.groups)||!['ok','waiting'].includes(data.status))throw Error('Некорректный ответ сборщика.');
   if(data.status==='waiting')return {...data,groups:[],stale:false};
@@ -47,7 +47,7 @@ export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,
 export function initHostedFeed(onUpdate,_seed,options){
   const el=document.getElementById('collectorPanel');
   el.innerHTML=`<div class="sectionheading"><div><h2>Постоянный сборщик</h2><p>Работает на GitHub при закрытом приложении. Без ввода ID.</p></div><span id="cloudBadge">Подключение…</span></div>
-    <div class="leadPeriodButtons"><button class="secondary" data-cloud-period="1h">Появились за последний час</button><button class="secondary" data-cloud-period="1-3h">Появились за 1–3 часа</button><button class="secondary" data-cloud-period="today">Появились сегодня</button></div>
+    <div class="leadPeriodButtons"><button class="secondary" data-cloud-period="">Все актуальные</button><button class="secondary" data-cloud-period="1h">Появились за последний час</button><button class="secondary" data-cloud-period="1-3h">Появились за 1–3 часа</button><button class="secondary" data-cloud-period="today">Появились сегодня</button></div>
     <button class="primary" id="cloudRefresh">Обновить подходящие сообщества</button>
     <p id="cloudStatus" role="status" aria-live="polite"></p>
     <div id="cloudSetup" hidden><p>Подключение требуется один раз владельцу приложения. Посетителям ключ не нужен.</p><a class="link" href="https://github.com/German22Fed/vk-leads/settings/secrets/actions" target="_blank" rel="noopener noreferrer">Добавить VK_SERVICE_TOKEN ↗</a> · <a class="link" href="https://github.com/German22Fed/vk-leads/actions/workflows/vk-collector.yml" target="_blank" rel="noopener noreferrer">Запустить сборщик / журнал ошибок ↗</a></div>
@@ -60,7 +60,7 @@ export function initHostedFeed(onUpdate,_seed,options){
     badge.textContent=s.title;status.textContent=s.message;document.getElementById('cloudSetup').hidden=!s.setup;
     if(summary){summary.hidden=false;summary.textContent=s.title+'. '+s.message;summary.dataset.state=s.kind;}
   }});
-  const search=()=>{document.getElementById('dateBasis').value='appeared';options.onShowCandidates?.(document.getElementById('period').value||'today');return refresh();};
+  const search=()=>{document.getElementById('dateBasis').value='appeared';options.onShowCandidates?.(document.getElementById('period').value);return refresh();};
   options.onRegisterSearch?.(search);
   // Period buttons only choose a criterion; refresh happens from the explicit update button.
   el.querySelectorAll('[data-cloud-period]').forEach(b=>b.onclick=()=>options.onShowCandidates?.(b.dataset.cloudPeriod));
