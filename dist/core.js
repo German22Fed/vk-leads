@@ -4,7 +4,7 @@ export function parseGroups(text){
  for(let token of tokens){try{if(/^https?:\/\//i.test(token)){const u=new URL(token);if(!['vk.ru','vk.com','www.vk.ru','www.vk.com','m.vk.com','m.vk.ru'].includes(u.hostname))throw Error();token=u.pathname.replace(/^\/+|\/+$/g,'');}token=token.replace(/^(club|public)(?=\d+$)/,'');if(!/^(?:[1-9]\d*|[a-zA-Z][a-zA-Z0-9_.]{2,63})$/.test(token)||/^(app|id)\d+$/.test(token))throw Error();ids.push(token);}catch{invalid.push(token);}}
  return {ids:[...new Set(ids)],invalid};
 }
-export function score(g){let n=0;const reasons=[];if(g.posts>=2&&g.posts<=3){n+=40;reasons.push('2–3 публикации — можно предложить стартовый комплект');}if(g.avatar===true&&g.cover===true){n+=20;reasons.push('Есть базовое оформление — можно обсудить единый стиль');}if(g.members>0&&g.members<=500){n+=20;reasons.push('Небольшая аудитория');}if(g.canMessage===true){n+=20;reasons.push('Сообщения сообщества доступны');}return {value:n,reasons};}
+export function score(g){let n=0;const reasons=[];if(g.cover===false){n+=35;reasons.push('Нет обложки');}if(g.avatar===false){n+=25;reasons.push('Нет аватара');}if(Number.isInteger(g.posts)&&g.posts>=0&&g.posts<=3){n+=20;reasons.push('До трёх публикаций');}if(g.members>0&&g.members<=500){n+=10;reasons.push('Небольшая аудитория');}if(g.canMessage===true){n+=10;reasons.push('Сообщения сообщества доступны');}return {value:n,reasons};}
 export function mergeGroups(existing,incoming,now=Date.now()) {const map=new Map(existing.map(g=>[g.id,g]));for(const g of incoming){const prev=map.get(g.id);map.set(g.id,{...prev,...g,firstSeen:prev?.firstSeen??now,seen:prev?.seen??false,status:prev?.status??'new',saved:prev?.saved??false,checkedAt:now});}return [...map.values()];}
 const HOUR=3600000;
 export function timeWindow(period,now=Date.now(),minHours=0,maxHours=3){
@@ -29,13 +29,16 @@ export function hasCandidateInterval(g){
    Number.isSafeInteger(a.lowerId)&&g.id>a.lowerId&&['placeholder','omitted'].includes(a.previousResponse)&&Number.isInteger(a.priorChecks)&&a.priorChecks>=1;
 }
 export function filterGroups(groups,f,now=Date.now()){
- const window=timeWindow(f.period,now,f.minHours,f.maxHours);
+ const effectivePeriod=f.view==='discover'&&f.dateBasis==='appeared'&&!f.period?'24h':f.period;
+ const window=timeWindow(effectivePeriod,now,f.minHours,f.maxHours);
  const timestamp=g=>f.dateBasis==='created'?creationTimestamp(g,f.allowDemo===true):f.dateBasis==='appeared'?g.observation?.appearance?.to:g.firstSeen;
  return groups.filter(g=>{
  if(f.dateBasis==='id'&&!g.idDiscovery)return false;
  if(f.view==='saved'&&!g.saved)return false;
  if(f.view==='pipeline'&&g.status==='new')return false;
  if(f.view!=='pipeline'&&g.status==='hidden')return false;
+ if(f.view==='discover'&&['opened','sent','replied','client'].includes(g.status))return false;
+ if(f.view==='discover'&&f.needsDesign&&g.avatar===true&&g.cover===true)return false;
  if(f.onlyNew&&g.seen)return false;
  if(f.exact&&!(g.posts>=2&&g.posts<=3&&g.avatar===true&&g.cover===true))return false;
  if(f.canMessage&&g.canMessage!==true)return false;

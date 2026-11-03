@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.43';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.43';
-import {getBridge} from './vk-start.js?v=11.43';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.43';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.43';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.44';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.44';
+import {getBridge} from './vk-start.js?v=11.44';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.44';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.44';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.43';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.43';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.44';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.44';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -26,14 +26,14 @@ let serverConnected=false;
 const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?live.filter(g=>g.collectorFeed===true&&g.available===true&&Date.now()-g.verifiedAt<=3600000&&Date.now()-g.observation?.wallCheckedAt<=3600000&&!g.observation.wallError):live;
 const persist=()=>write('radar.'+mode,mode==='demo'?demo:live);
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),5000);}
-function filters(){return {view,query:$('filterQuery').value.trim(),onlyNew:$('onlyNew').checked,exact:$('exact').checked,canMessage:$('canMessage').checked,period:$('period').value,dateBasis:$('dateBasis').value,minHours:$('minHours').value,maxHours:$('maxHours').value,allowDemo:mode==='demo',sort:$('sort').value};}
+function filters(){return {view,query:$('filterQuery').value.trim(),onlyNew:$('onlyNew').checked,needsDesign:$('needsDesign').checked,exact:$('exact').checked,canMessage:$('canMessage').checked,period:$('period').value,dateBasis:$('dateBasis').value,minHours:$('minHours').value,maxHours:$('maxHours').value,allowDemo:mode==='demo',sort:$('sort').value};}
 const statuses={new:'Не обработано',opened:'Диалог открыт',sent:'Предложение отправлено',replied:'Ответили',client:'Клиент',hidden:'Не подходит'};
 function render(){
  const all=groups(), f=filters(), baseList=filterGroups(all,f), list=freshFilter&&view==='discover'?baseList.filter(g=>freshSessionIds.has(g.id)):baseList;
  const created=f.dateBasis==='created',appeared=f.dateBasis==='appeared',byId=f.dateBasis==='id';
  $('recentTitle').textContent=byId?'Снимок последних ID':created?'Подтверждённая дата создания':appeared?'Свежие кандидаты по росту ID':'Первое обнаружение в базе';
  const range=timeWindow(f.period,Date.now(),f.minHours,f.maxHours);
- $('recentPill').textContent=byId?'Дата неизвестна':!f.period?'Все актуальные':range?date(range.from)+' — '+date(range.to):'Неверный период';
+ $('recentPill').textContent=byId?'Дата неизвестна':!f.period?(view==='discover'?'Последние 24 часа':'Все сохранённые'):range?date(range.from)+' — '+date(range.to):'Неверный период';
  $('customRange').hidden=byId||f.period!=='custom';
  $('period').disabled=byId;
  document.querySelectorAll('[data-period]').forEach(b=>{b.disabled=false;});
@@ -41,14 +41,20 @@ function render(){
  document.querySelector('.recentIntro').textContent=byId?'Свежий снимок VK без подтверждённой даты создания.':'Выберите, когда сообщество появилось в наблюдении. «Сегодня» — с 00:00 по Москве.';
  $('rangeError').hidden=!invalid;
  syncPeriodButtons(f.period);
+ if(hostedFeed)document.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
+  b.dataset.label??=b.textContent;
+  const period=b.dataset.cloudPeriod??b.dataset.period;
+  b.textContent=b.dataset.label+' · '+filterGroups(all,{...f,view:'discover',dateBasis:'appeared',period},Date.now()).length;
+  b.title='Количество с вашими фильтрами. Обработанные карточки исключены. Время — наблюдение, не регистрация.';
+ });
  const unknown=all.filter(g=>creationTimestamp(g,mode==='demo')===null).length;
  $('creationNotice').textContent=snapshotMode&&f.dateBasis==='discovered'?'Свежий снимок VK загружен сейчас. После накопления наблюдений периоды будут показывать сообщества, появившиеся именно в выбранном интервале.':appeared?'Показаны кандидаты по переходу ID в доступное состояние. Это оценка новизны, не подтверждённая дата создания; ранее скрытая группа могла существовать раньше.':created?(mode==='demo'?'Демо: время создания вымышленное. Фильтры показывают, как будет работать подбор при наличии точных дат.':('Источник точного времени создания пока не подключён. Без подтверждённой даты: '+unknown+'.')):'Учитывается первое обнаружение в этой базе. Сообщество могло быть создано раньше.';
  if(byId)$('creationNotice').textContent='Показан свежий снимок VK. Точная дата создания неизвестна.';
  $('emptyTitle').textContent=appeared?'Подходящих новых сообществ пока нет':invalid?'Проверьте диапазон часов':created&&mode==='live'?'Нет подтверждённых дат в этом диапазоне':'В этом диапазоне сообществ не найдено';
- $('emptyText').textContent=hostedFeed&&view==='discover'?'Проверьте статус постоянного сборщика выше. Лента пополняется после успешных проверок GitHub; держать приложение открытым не нужно.':freshFilter&&view==='discover'?'Нажмите кнопку периода, чтобы обновить подбор. Повторы скрываются.':snapshotMode?'Измените направление поиска или повторите проверку VK.':appeared?'Нажмите «Найти подходящие сообщества» и оставьте Mini App открытым для наблюдения VK.':created&&mode==='live'?'Точная дата создания не подтверждена VK.':'Измените период или направление поиска.';
+ $('emptyText').textContent=hostedFeed&&view==='discover'?'Нет непросмотренных кандидатов под выбранные условия. Обработанные находятся в «В работе». Снимите фильтр оформления или выберите другой период. Обновление загружает последнюю проверку сборщика; новые карточки появляются после серверного сбора.':freshFilter&&view==='discover'?'Нажмите кнопку периода, чтобы обновить подбор. Повторы скрываются.':snapshotMode?'Измените направление поиска или повторите проверку VK.':appeared?'Нажмите «Найти подходящие сообщества» и оставьте Mini App открытым для наблюдения VK.':created&&mode==='live'?'Точная дата создания не подтверждена VK.':'Измените период или направление поиска.';
  $('totalStat').textContent=all.length;$('newStat').textContent=all.filter(g=>!g.seen&&g.status!=='hidden').length;$('newChip').textContent=$('newStat').textContent;$('matchStat').textContent=all.filter(g=>g.posts>=2&&g.posts<=3&&g.avatar===true&&g.cover===true&&g.status!=='hidden').length;$('workStat').textContent=all.filter(g=>!['new','hidden'].includes(g.status)).length;$('savedCount').textContent=all.filter(g=>g.saved).length;$('listCount').textContent=list.length;
  $('demoBanner').hidden=mode!=='demo';renderConnection();
- $('cards').innerHTML=list.map(g=>{const s=score(g);const pic=safeImage(g.photo),cover=safeImage(g.coverUrl);return `<article class="card" data-id="${g.id}"><div class="cover" style="background:${g.demo?g.bg:'#e8edf5'};color:${g.demo?g.ink:'#7d8ea8'}">${cover?`<img src="${cover}" alt="Обложка сообщества" loading="lazy" referrerpolicy="no-referrer">`:`<div class="coverart"><div>${esc(g.art||'сообщество')}<span>${esc(g.artSub||'ВКонтакте')}</span></div></div>`}${created&&creationTimestamp(g,mode==='demo')!==null?'<span class="newbadge">◷ ДАТА СОЗДАНИЯ'+(g.demo?' · ДЕМО':'')+'</span>':!g.seen?'<span class="newbadge">● НОВОЕ ДЛЯ ВАС</span>':''}<button class="bookmark ${g.saved?'selected':''}" data-action="save" aria-label="${g.saved?'Убрать из сохранённых':'Сохранить'}">${g.saved?'★':'☆'}</button></div><div class="cardbody"><div class="identity"><div class="avatar" ${g.demo?`style="background:${g.bg};color:${g.ink}"`:''}>${pic?`<img src="${pic}" alt="" loading="lazy" referrerpolicy="no-referrer">`:esc(g.monogram||g.name[0])}</div><div><h3 title="${esc(g.name)}">${esc(g.name)}</h3><p>${esc(g.category)} · ${esc(g.city)}</p></div></div><div class="numbers"><span>♧ <b>${g.members??'—'}</b> подписчиков</span><span>▤ <b>${g.posts??'—'}</b> поста / постов</span></div><div class="tags"><span class="tag good">✓ Данные VK проверены · ${date(g.verifiedAt)}</span>${g.observation?.appearance?.kind==='frontier_candidate'?'<span class="tag">Кандидат по росту ID · создание не подтверждено</span>':''}<span class="tag ${g.avatar?'good':''}">${g.avatar===null?'?':g.avatar?'✓':'−'} Аватарка</span><span class="tag ${g.cover?'good':''}">${g.cover===null?'?':g.cover?'✓':'−'} Обложка</span><span class="tag ${g.canMessage?'good':''}">${g.canMessage===null?'?':g.canMessage?'✓':'−'} Сообщения</span></div><div class="priority"><span>✧</span>${s.value>=80?'Высокий приоритет':s.value>=50?'Есть потенциал':'Нужна оценка'}<b>${s.value} / 100</b></div><p class="reason">${esc(g.posts>=2&&g.posts<=3?'Мало публикаций — повод предложить единый стиль':g.wallUnavailable?'Стена недоступна: число постов не определено':'Проверьте, что можно улучшить в оформлении')}</p><div class="cardactions"><button class="messagebtn" data-action="message" ${g.demo||g.canMessage===false?'disabled':''}>↗ &nbsp; ${g.canMessage===false?'Сообщения закрыты':g.canMessage===true?'Написать в ВК':'Проверить и открыть диалог'}</button><button class="details" data-action="details">Подробнее</button></div><div class="cardfoot"><span>${appeared?'Переход ID: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):(created?'Создано':'Найдено')+' '+date(created?creationTimestamp(g,mode==='demo'):g.firstSeen)} · ${esc(statuses[g.status]||g.status)}</span><button data-action="hide">Не подходит</button></div></div></article>`;}).join('');$('empty').hidden=list.length>0;
+ $('cards').innerHTML=list.map(g=>{const s=score(g);const pic=safeImage(g.photo),cover=safeImage(g.coverUrl);return `<article class="card" data-id="${g.id}"><div class="cover" style="background:${g.demo?g.bg:'#e8edf5'};color:${g.demo?g.ink:'#7d8ea8'}">${cover?`<img src="${cover}" alt="Обложка сообщества" loading="lazy" referrerpolicy="no-referrer">`:`<div class="coverart"><div>${esc(g.art||'сообщество')}<span>${esc(g.artSub||'ВКонтакте')}</span></div></div>`}${created&&creationTimestamp(g,mode==='demo')!==null?'<span class="newbadge">◷ ДАТА СОЗДАНИЯ'+(g.demo?' · ДЕМО':'')+'</span>':!g.seen?'<span class="newbadge">● НОВОЕ ДЛЯ ВАС</span>':''}<button class="bookmark ${g.saved?'selected':''}" data-action="save" aria-label="${g.saved?'Убрать из сохранённых':'Сохранить'}">${g.saved?'★':'☆'}</button></div><div class="cardbody"><div class="identity"><div class="avatar" ${g.demo?`style="background:${g.bg};color:${g.ink}"`:''}>${pic?`<img src="${pic}" alt="" loading="lazy" referrerpolicy="no-referrer">`:esc(g.monogram||g.name[0])}</div><div><h3 title="${esc(g.name)}">${esc(g.name)}</h3><p>${esc(g.category)} · ${esc(g.city)}</p></div></div><div class="numbers"><span>♧ <b>${g.members??'—'}</b> подписчиков</span><span>▤ <b>${g.posts??'—'}</b> поста / постов</span></div><div class="tags"><span class="tag good">✓ Данные VK проверены · ${date(g.verifiedAt)}</span>${g.observation?.appearance?.kind==='frontier_candidate'?'<span class="tag">Кандидат по росту ID · создание не подтверждено</span>':''}<span class="tag ${g.avatar?'good':''}">${g.avatar===null?'?':g.avatar?'✓':'−'} Аватарка</span><span class="tag ${g.cover?'good':''}">${g.cover===null?'?':g.cover?'✓':'−'} Обложка</span><span class="tag ${g.canMessage?'good':''}">${g.canMessage===null?'?':g.canMessage?'✓':'−'} Сообщения</span></div><div class="priority"><span>✧</span>${s.value>=80?'Высокий приоритет':s.value>=50?'Есть потенциал':'Нужна оценка'}<b>${s.value} / 100</b></div><p class="reason">${esc(g.posts>=2&&g.posts<=3?'Мало публикаций — повод предложить единый стиль':g.wallUnavailable?'Стена недоступна: число постов не определено':'Проверьте, что можно улучшить в оформлении')}</p><div class="cardactions"><button class="messagebtn" data-action="message" ${g.demo||g.canMessage===false?'disabled':''}>↗ &nbsp; ${g.canMessage===false?'Сообщения закрыты':g.canMessage===true?'Написать в ВК':'Проверить и открыть диалог'}</button><button class="details" data-action="sent" title="Отметить отправку вручную и убрать из свежей ленты">Уже написал</button><button class="details" data-action="details">Подробнее</button></div><div class="cardfoot"><span>${appeared?'Переход ID: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):(created?'Создано':'Найдено')+' '+date(created?creationTimestamp(g,mode==='demo'):g.firstSeen)} · ${esc(statuses[g.status]||g.status)}</span><button data-action="hide">Не подходит</button></div></div></article>`;}).join('');$('empty').hidden=list.length>0;
 }
 function modal(title,html){$('modalTitle').textContent=title;$('modalBody').innerHTML=html;if(!$('modal').open)$('modal').showModal();}
 function deleteLocalData(){
@@ -69,19 +75,22 @@ function selectPeriod(period){
  $('mainContent').hidden=false;$('templateView').hidden=true;render();
 }
 function reset(){for(const id of ['onlyNew','exact','canMessage'])$(id).checked=false;$('filterQuery').value='';freshFilter=false;render();}
-for(const id of ['filterQuery','period','sort','onlyNew','exact','canMessage','dateBasis','minHours','maxHours'])$(id).addEventListener(['filterQuery','minHours','maxHours'].includes(id)?'input':'change',render);
+for(const id of ['filterQuery','period','sort','onlyNew','needsDesign','exact','canMessage','dateBasis','minHours','maxHours'])$(id).addEventListener(['filterQuery','minHours','maxHours'].includes(id)?'input':'change',render);
 // Period controls only choose a criterion. The explicit update button performs the request.
 document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>selectPeriod(b.dataset.period));
 $('dateBasis').addEventListener('change',()=>{freshFilter=false;snapshotMode=false;render();});
+$('exact').addEventListener('change',()=>{if($('exact').checked)$('needsDesign').checked=false;render();});
+$('needsDesign').addEventListener('change',()=>{if($('needsDesign').checked)$('exact').checked=false;render();});
 $('resetFilters').onclick=reset;$('emptyReset').onclick=reset;
-document.querySelectorAll('[data-view]').forEach(el=>el.onclick=()=>{view=el.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x===el));$('crumb').textContent=el.textContent.trim().replace(/^[^А-Я]+/,'');$('mainContent').hidden=view==='templates';$('templateView').hidden=view!=='templates';if(view==='templates')$('templateText').value=template;if(view==='pipeline'||view==='saved')reset();render();});
+document.querySelectorAll('[data-view]').forEach(el=>el.onclick=()=>{view=el.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x===el));$('crumb').textContent=el.textContent.trim().replace(/^[^А-Я]+/,'');$('mainContent').hidden=view==='templates';$('templateView').hidden=view!=='templates';if(view==='templates')$('templateText').value=template;if(view==='pipeline'||view==='saved'){$('period').value='';$('dateBasis').value='discovered';reset();}else if(view==='discover'){$('period').value='today';$('dateBasis').value='appeared';$('sort').value='new';$('onlyNew').checked=true;$('needsDesign').checked=true;}render();});
 $('saveTemplate').onclick=()=>{const v=$('templateText').value.trim();if(!v)return toast('Введите текст предложения.');template=v;write('radar.template',v);toast('Шаблон сохранён');};
 $('readAll').onclick=()=>{const ids=new Set(filterGroups(groups(),filters()).map(g=>g.id));groups().forEach(g=>{if(ids.has(g.id))g.seen=true;});persist();render();toast('Показанные сообщества отмечены просмотренными');};
 $('cards').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)return;const g=groups().find(x=>x.id===Number(b.closest('[data-id]').dataset.id));if(!g)return;
  if(b.dataset.action==='save'){g.saved=!g.saved;persist();render();return;}
+ if(b.dataset.action==='sent'){setStatus(g,'sent');toast('Отмечено как отправленное. Карточка находится в «В работе».');return;}
  if(b.dataset.action==='hide'){g.status='hidden';persist();render();toast('Убрано из ленты. Вернуть можно в разделе «В работе».');return;}
  if(b.dataset.action==='message'&&messagePending){toast('Дождитесь завершения открытия диалога.');return;}
- g.seen=true;persist();render();if(b.dataset.action==='message'){compose(g);openConversationNow(g,$('draft').value);}else details(g);
+ g.seen=true;persist();render();if(b.dataset.action==='message'){compose(g);if(openConversationNow(g,$('draft').value)&&g.status==='new'){setStatus(g,'opened');$('leadStatus').value='opened';}}else details(g);
 };
 async function verifyGroup(g){if(g.demo)return {ok:false,reason:'Демо-сообщество нельзя открыть в VK.'};try{const raw=await api('groups.getById',{group_ids:String(g.id),fields:'name,screen_name,deactivated,can_message,has_photo,cover'});const rows=groupRows(raw,[g.id],{allowIncomplete:true});const row=rows.find(x=>x.id===g.id);if(!isUsableGroup(row)){live=live.filter(x=>x.id!==g.id);persist();render();return {ok:false,reason:'VK больше не возвращает это сообщество. Карточка удалена из выдачи.'};}Object.assign(g,{name:row.name,screenName:row.screen_name||g.screenName,canMessage:row.can_message===undefined?null:!!row.can_message,verifiedAt:Date.now(),verification:'groups.getById'});persist();render();if(g.canMessage===null)return {ok:false,reason:'VK не вернул доступность сообщений. Повторите проверку или откройте страницу сообщества.'};if(!g.canMessage)return {ok:false,reason:'Сообщество существует, но сообщения в нём закрыты.'};return {ok:true};}catch(e){return {ok:false,reason:'Не удалось подтвердить сообщество через VK: '+e.message};}}
 function messageNotice(text){const el=$('messageStatus');if(el)el.textContent=text;else toast(text);}
@@ -144,7 +153,7 @@ async function prepareNativeMessage(g,text,{dialogOnly=false}={}){
   });
   if(result.status==='blocked'){show(result.reason);return;}
   if(result.status==='dialog'||result.status==='confirmed'){
-   if(g.status==='new')g.status='opened';persist();render();
+   if(g.status==='new')setStatus(g,'opened');
   }
   if(result.status==='dialog')show('Диалог открыт по ссылке с полным письмом. Если VK не заполнил строку ввода, '+(result.copied?'письмо уже скопировано — вставьте его.':'скопируйте письмо кнопкой выше.')+' Отправку подтвердите в VK.');
   else if(result.status==='link-required')show('VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
@@ -164,6 +173,12 @@ function openConversationNow(g,text){
  void copyDraftText();
  return !!popup;
 }
+function setStatus(g,status){
+ if(!Object.hasOwn(statuses,status))return;
+ const current=live.find(row=>row.id===g.id)||g;
+ const patch={status,seen:status!=='new',statusUpdatedAt:Date.now()};
+ Object.assign(current,patch);Object.assign(g,patch);persist();render();
+}
 function compose(g){
  const text=messageFor(g,template),plain=esc(dialogUrl(g,'')),prepared=esc(dialogUrl(g,text));
  modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="secondary" id="copyDraft">Скопировать письмо</button><a class="secondary" id="openDialog" href="${plain}" target="_blank" rel="noopener noreferrer">Открыть чат по ссылке ↗</a></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать полное письмо со ссылками. Открытие чата не зависит от копирования или подключения API.</p><label for="draft">Готовое сообщение KG Design</label><textarea id="draft" rows="18">${esc(text)}</textarea><p id="messageStatus" role="status" aria-live="polite">Передаём полный текст в ссылке. Подстановка зависит от версии VK. Если поле пустое, вставьте скопированное письмо. Отправку подтвердите в VK.</p><div class="modalrow"><a class="primary" id="prepareMessage" href="${prepared}" target="_blank" rel="noopener noreferrer">Написать с готовым письмом ↗</a></div><p style="margin-top:14px"><a id="draftLink" class="link" target="_top" href="${prepared}">Открыть в этом окне</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p><label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
@@ -171,10 +186,11 @@ function compose(g){
  $('draft').oninput=()=>{const href=dialogUrl(g,$('draft').value);$('draftLink').href=href;$('prepareMessage').href=href;$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
  for(const id of ['openDialog','prepareMessage','draftLink'])$(id).onclick=()=>{
   // Do not prevent the anchor's default navigation or await an API response.
-  messageNotice('Переход в VK запрошен. Отправка сообщения не подтверждена.');
+  if(g.status==='new'){setStatus(g,'opened');$('leadStatus').value='opened';}
+  messageNotice('Переход в VK запрошен. Карточка перенесена в «В работе». Отправка сообщения не подтверждена.');
   void copyDraftText();
  };
- $('leadStatus').onchange=e=>{g.status=e.target.value;persist();render();};
+ $('leadStatus').onchange=e=>setStatus(g,e.target.value);
 }
 function details(g){const s=score(g);modal(g.name,`<p>${esc(g.description||g.category)}</p><p>Впервые найдено: <b>${date(g.firstSeen)}</b><br>Дата создания: <b>${creationTimestamp(g,mode==='demo')!==null?date(creationTimestamp(g,mode==='demo'))+(g.demo?' (вымышленная)':''):'не подтверждена'}</b><br>Источник: ${esc(g.source)}${g.latestPost?`<br>Последняя доступная публикация: ${date(g.latestPost*1000)}`:''}</p>${g.observation?`<div class="modalnote">Проверок ID: ${g.observation.checks}. Не вернулся в ответе: ${g.observation.missingChecks} раз.${g.observation.appearance?.kind==='frontier_candidate'?'<br>Метод: ID выше предыдущей границы; переход из заглушки/пропуска в доступную группу. Это не доказательство времени регистрации.':''}<br>Результат: ${esc({baseline:'Исходная база, возраст неизвестен',candidate_today:'Кандидат за сегодня; создание не подтверждено',candidate_other_day:'Кандидат вне сегодняшнего интервала',frontier_today:'Кандидат по росту ID; дата создания не подтверждена',frontier_other_day:'Кандидат по росту ID вне сегодняшнего интервала',older:'Есть публикация до интервала появления — группа старше'}[g.observation.verdict])}${['candidate','frontier_candidate'].includes(g.observation.appearance?.kind)?'<br>Интервал: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):''}${g.observation.oldestObservedPost?'<br>Самая ранняя найденная публикация: '+date(g.observation.oldestObservedPost):''}${g.observation.wallError?'<br>Стена: '+esc(g.observation.wallError):''}</div>`:''}<h3>Почему приоритет ${s.value} из 100</h3><ul>${s.reasons.map(r=>`<li>${esc(r)}</li>`).join('')||'<li>Недостаточно признаков — оцените сообщество вручную.</li>'}</ul><p>Наличие аватарки и обложки не говорит о качестве дизайна или готовности купить услугу.</p><div class="modalrow"><button id="detailCompose" class="primary">Подготовить предложение</button>${!g.demo?`<a class="secondary" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Посмотреть в ВК ↗</a>`:''}</div>`);$('detailCompose').onclick=()=>compose(g);}
 function renderConnection(){

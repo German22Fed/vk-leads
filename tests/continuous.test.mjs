@@ -111,6 +111,19 @@ test('Heavy hourly traffic cannot starve the 1–3h queue',()=>{
  assert.equal(selected.length,400);assert.ok(selected.filter(r=>r.id>=600).length>=150);
 });
 
+test('Old and uncertain multi-day intervals do not consume live recheck slots',()=>{
+ const now=Date.UTC(2026,10,3,17),records={};
+ for(const [id,from,to] of [[1,now-90000000,now-1000],[2,now-172800000,now-90000000],[3,now-1800000,now-1000]])
+  records[id]={id,available:true,appearance:{kind:'frontier_candidate',from,to},group:{id,name:'Мебель на заказ',members:5}};
+ assert.deepEqual(selectRechecks(records,now).map(r=>r.id),[3]);
+});
+
+test('Within each time bucket incomplete design is checked before a fully decorated profile',()=>{
+ const now=Date.UTC(2026,10,3,17),records={};
+ for(let id=1;id<=500;id++)records[id]={id,available:true,appearance:{kind:'frontier_candidate',from:now-1800000,to:now-1000},group:{id,name:'Салон красоты',members:5,avatar:true,cover:id!==500}};
+ const selected=selectRechecks(records,now);assert.equal(selected.length,400);assert.equal(selected[0].id,500);
+});
+
 test('Expanded scan covers IDs beyond the former 2000 limit and respects integer ceiling',()=>{
  const ids=scanIds({config:{startId:100}});
  assert.equal(ids.length,6000);assert.equal(ids[0],100);assert.equal(ids.at(-1),6099);

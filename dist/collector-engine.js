@@ -1,5 +1,5 @@
 import { normalizeGroup } from './core.js';
-import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.36';
+import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.39';
 
 const DAY = 86400000;
 export const moscowDay = at => new Date(at + 10800000).toISOString().slice(0, 10);
@@ -107,7 +107,8 @@ export class Collector {
         items = [...items, ...tail.items];
       }
       // Only a direct original wall post proves prior existence. Repost source dates do not.
-      const dates = items.filter(p => p.owner_id === -rec.id && Number.isFinite(p.date) && p.date > 0 && p.date*1000 <= this.clock()).map(p => p.date*1000);
+      const dates = items.filter(p => (p.owner_id??p.to_id) === -rec.id && Number.isFinite(p.date) && p.date > 0 && p.date*1000 <= this.clock()).map(p => p.date*1000);
+      if(first.count>0&&!dates.length)throw Error('Не подтверждены даты публикаций на стене сообщества.');
       if (dates.length) rec.oldestObservedPost = Math.min(rec.oldestObservedPost ?? Infinity, ...dates);
       rec.group.posts = first.count; rec.group.wallUnavailable = false;
       rec.group.latestPost = first.items.filter(p => Number.isFinite(p.date)).reduce((m,p)=>Math.max(m,p.date),0) || null;

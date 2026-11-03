@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.43';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.43';
+import {isLeadFitGroup} from './vk-data.js?v=11.44';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.44';
 export function syncPeriodButtons(period,root=document){
   root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
     const active=(b.dataset.cloudPeriod??b.dataset.period)===period;
@@ -37,7 +37,7 @@ export function coverageText(data){
   const n=c.counts;
   return `Охват последнего прохода: ${c.checkedThisPass} ID (${c.scanStart}–${c.scanEnd}). Это часть VK, не все новые сообщества. `+
     (c.gapSeconds!==null?`Пауза между проходами: ${Math.round(c.gapSeconds/60)} мин. `:'')+
-    `В сохранённой базе: ${c.tracked}. Готовы к показу: ${n.published}; ждут проверки: ${n.pendingVerification}; не подходят по названию: ${n.irrelevant}; не подходят по аудитории: ${n.audience}; старые посты: ${n.oldPosts}; недоступны/ошибка стены: ${n.unavailable+n.wallError+n.withdrawn}; без интервала: ${n.withoutInterval}. `+
+    `В сохранённой базе: ${c.tracked}. Готовы к показу: ${n.published}; ждут проверки: ${n.pendingVerification}; не подходят по названию: ${n.irrelevant}; не подходят по аудитории: ${n.audience}; старые посты: ${n.oldPosts}; недоступны/ошибка стены: ${n.unavailable+n.wallError+n.withdrawn}; без интервала: ${n.withoutInterval}; вне последних суток: ${n.olderInterval||0}. `+
     `Пересекают границы периода и не включены в точную подборку: последний час — ${c.periods['1h'].uncertainBoundary}, 1–3 часа — ${c.periods['1-3h'].uncertainBoundary}. `+
     (c.retentionDropped?`Удалено из истории из-за ограничения хранения: ${c.retentionDropped}. `:'')+
     'Количество карточек не равно числу созданных в VK групп. Интервал наблюдения не подтверждает регистрацию.';
@@ -53,15 +53,16 @@ export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,
         const res=await fetchImpl(endpoint,{cache:'no-store',signal:AbortSignal.timeout(timeoutMs)});
         if(!res.ok)throw Error(res.status===404?'Лента ещё не опубликована. Проверьте запуск сборщика.':'Не удалось загрузить ленту. Повторите попытку.');
         let raw;try{raw=await res.json();}catch{throw Error('Сервер вернул некорректную ленту. Откройте журнал сборщика.');}
+        const hadSnapshot=!!lastRaw;
         const older=lastRaw&&raw.updatedAt<lastRaw.updatedAt;
         const data=validateFeed(older?lastRaw:raw,clock());
         const changed=!!lastRaw&&data.updatedAt>lastRaw.updatedAt;
         const added=changed?data.groups.filter(g=>!known.has(g.id)).length:0;
         addedTotal+=added;data.groups.forEach(g=>known.add(g.id));
         if(!older)lastRaw=raw;
-        data.refresh={checkedAt:clock(),added,addedTotal,olderSnapshotIgnored:!!older};
+        data.refresh={checkedAt:clock(),added,addedTotal,firstLoad:!hadSnapshot,snapshotChanged:changed,olderSnapshotIgnored:!!older};
         const count=onData(data);
-        const result=feedOutcome(data,count);onState(result);return result;
+        const result=feedOutcome(data,count);if(result.kind==='ready'&&hadSnapshot){result.title=added?'Получены новые карточки':changed?'Сборщик обновил проверку':'Новых данных от сборщика пока нет';result.message=(changed?'Новый серверный снимок. Дополнительных карточек в общей ленте: '+added+'. ':'Снимок не изменился. Кнопка загружает опубликованную ленту; сервер проверяет VK по расписанию. ')+result.message;}onState(result);return result;
       }catch(e){const result={kind:'error',title:'Не удалось обновить подбор',message:e.name==='TimeoutError'||e.name==='AbortError'?'Сервер не ответил за 15 секунд. Нажмите «Обновить подходящие сообщества» ещё раз.':e instanceof TypeError?'Нет соединения с лентой. Проверьте интернет и повторите попытку.':e.message,setup:true};onState(result);return result;}
       finally{pending=null;}
     });
@@ -79,7 +80,7 @@ export function startFeedRefresh(refresh,{doc=document,win=window,every=setInter
 export function initHostedFeed(onUpdate,_seed,options){
   const el=document.getElementById('collectorPanel');
   el.innerHTML=`<div class="sectionheading"><div><h2>Постоянный сборщик</h2><p>Работает на GitHub при закрытом приложении. Без ввода ID.</p></div><span id="cloudBadge">Подключение…</span></div>
-    <div class="leadPeriodButtons"><button class="secondary" data-cloud-period="">Все актуальные</button><button class="secondary" data-cloud-period="1h">Появились за последний час</button><button class="secondary" data-cloud-period="1-3h">Появились за 1–3 часа</button><button class="secondary" data-cloud-period="today">Появились сегодня</button></div>
+    <div class="leadPeriodButtons"><button class="secondary" data-cloud-period="">Последние 24 часа</button><button class="secondary" data-cloud-period="1h">Появились за последний час</button><button class="secondary" data-cloud-period="1-3h">Появились за 1–3 часа</button><button class="secondary" data-cloud-period="today">Появились сегодня</button></div>
     <button class="primary" id="cloudRefresh">Обновить подходящие сообщества</button>
     <p id="cloudStatus" role="status" aria-live="polite"></p>
     <p id="cloudRefreshInfo" class="refreshInfo">Автообновление каждую минуту, пока приложение открыто.</p>
@@ -93,13 +94,7 @@ export function initHostedFeed(onUpdate,_seed,options){
     document.getElementById('cloudRefreshInfo').textContent=`Лента проверена: ${new Date(data.refresh.checkedAt).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})} МСК. Новых карточек за эту сессию: ${data.refresh.addedTotal}. Автообновление — каждую минуту.`+(data.refresh.olderSnapshotIgnored?' Сервер вернул старый снимок; сохранена более свежая лента.':'');
     document.getElementById('cloudCoverage').textContent=coverageText(data);
     onUpdate({connected:false,groups:data.groups,hosted:true});
-    document.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
-      b.dataset.label??=b.textContent;
-      const period=b.dataset.cloudPeriod??b.dataset.period;
-      const count=filterGroups(data.groups,{dateBasis:'appeared',period},Date.now()).length;
-      b.textContent=b.dataset.label+' · '+count;
-      b.title='Карточки в серверной ленте до дополнительных фильтров. Период наблюдения, не дата регистрации.';
-    });
+    // Period counts are rendered by the app with personal statuses and filters.
     return Number(document.getElementById('listCount').textContent)||0;
   },onState:s=>{
     const loading=s.kind==='loading';button.disabled=mainButton.disabled=loading;

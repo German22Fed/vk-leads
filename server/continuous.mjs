@@ -12,12 +12,13 @@ const fields='name,screen_name,photo_200,deactivated,members_count,city,activity
 export function selectRechecks(records,now,limit=RECHECK_LIMIT){
   const day=Math.floor((now+10800000)/DAY)*DAY-10800000;
   const bucket=r=>r.appearance.from>=now-HOUR?0:r.appearance.from>=now-3*HOUR?1:r.appearance.from>=day?2:3;
-  const pending=Object.values(records).filter(r=>candidate(r)&&!r.frontierWithdrawn&&r.appearance.to>=now-7*DAY&&
+  const pending=Object.values(records).filter(r=>candidate(r)&&!r.frontierWithdrawn&&r.appearance.from>=now-DAY&&
     r.group&&isLeadFitGroup(r.group)&&Number.isFinite(r.group.members)&&r.group.members<=500&&verdict(r,now)!=='older'&&
     !(r.available&&r.group.wallUnavailable!==true&&r.group.verifiedAt>now-40*60000&&r.wallCheckedAt>now-40*60000&&!r.wallError));
   // Reserve work for each time bucket, then give unused capacity back. A surge
   // in the last hour must not starve the 1–3h or today's queue indefinitely.
-  const queues=Array.from({length:4},(_,b)=>pending.filter(r=>bucket(r)===b).sort((a,b)=>(a.wallCheckedAt||0)-(b.wallCheckedAt||0)));
+  const complete=r=>Number(r.group.avatar===true&&r.group.cover===true);
+  const queues=Array.from({length:4},(_,b)=>pending.filter(r=>bucket(r)===b).sort((a,b)=>complete(a)-complete(b)||(a.wallCheckedAt||0)-(b.wallCheckedAt||0)));
   const selected=[];
   for(let b=0;b<4;b++)selected.push(...queues[b].splice(0,Math.floor(limit*[.375,.375,.2,.05][b])));
   for(const q of queues)selected.push(...q.splice(0,Math.max(0,limit-selected.length)));
@@ -40,7 +41,7 @@ export function compactState(state,now){
 export const eligible=(r, now)=>r.available===true && candidate(r) && !r.frontierWithdrawn &&
   r.group && isLeadFitGroup(r.group) && Number.isFinite(r.group.members) && r.group.members<=500 &&
   r.wallCheckedAt>=now-HOUR && !r.wallError && r.group.wallUnavailable===false &&
-  r.group.verifiedAt>=now-HOUR && verdict(r,now)!=='older' && r.appearance.to>=now-7*DAY;
+  r.group.verifiedAt>=now-HOUR && verdict(r,now)!=='older' && r.appearance.from>=now-DAY;
 
 // Work on an isolated copy: a failed network cycle must not replace the checkpoint.
 export async function collectOnce({previous=null,api,clock=Date.now,discover=findIdFrontier}){
@@ -122,9 +123,9 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
 }
 
 export function coverageReport(state,now,groups){
-  const rows=Object.values(state.records),counts={withoutInterval:0,withdrawn:0,irrelevant:0,audience:0,oldPosts:0,unavailable:0,wallError:0,pendingVerification:0,published:0};
+  const rows=Object.values(state.records),counts={withoutInterval:0,olderInterval:0,withdrawn:0,irrelevant:0,audience:0,oldPosts:0,unavailable:0,wallError:0,pendingVerification:0,published:0};
   for(const r of rows){
-    const reason=!candidate(r)?'withoutInterval':r.frontierWithdrawn?'withdrawn':!isLeadFitGroup(r.group)?'irrelevant':
+    const reason=!candidate(r)?'withoutInterval':r.appearance.from<now-DAY?'olderInterval':r.frontierWithdrawn?'withdrawn':!isLeadFitGroup(r.group)?'irrelevant':
       !Number.isFinite(r.group.members)||r.group.members>500?'audience':verdict(r,now)==='older'?'oldPosts':!r.available?'unavailable':
       r.wallError?'wallError':eligible(r,now)?'published':'pendingVerification';
     counts[reason]++;
