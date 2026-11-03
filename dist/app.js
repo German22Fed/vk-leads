@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.39';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.39';
-import {getBridge} from './vk-start.js?v=11.39';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.39';
-import {initHostedFeed} from './hosted-feed.js?v=11.39';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.40';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.40';
+import {getBridge} from './vk-start.js?v=11.40';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.40';
+import {initHostedFeed} from './hosted-feed.js?v=11.40';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.39';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.39';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.40';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.40';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -33,7 +33,7 @@ function render(){
  const created=f.dateBasis==='created',appeared=f.dateBasis==='appeared',byId=f.dateBasis==='id';
  $('recentTitle').textContent=byId?'Снимок последних ID':created?'Подтверждённая дата создания':appeared?'Свежие кандидаты по росту ID':'Первое обнаружение в базе';
  const range=timeWindow(f.period,Date.now(),f.minHours,f.maxHours);
- $('recentPill').textContent=byId?'Дата неизвестна':range?date(range.from)+' — '+date(range.to):'Неверный период';
+ $('recentPill').textContent=byId?'Дата неизвестна':!f.period?'Все актуальные':range?date(range.from)+' — '+date(range.to):'Неверный период';
  $('customRange').hidden=byId||f.period!=='custom';
  $('period').disabled=byId;
  document.querySelectorAll('[data-period]').forEach(b=>{b.disabled=false;});
@@ -302,7 +302,7 @@ let collectorSignature='';
  onAutoGroups:groups=>{const filtered=groups.filter(isVerifiedGroup),before=new Set(live.map(g=>g.id));live=mergeGroups(live,filtered);mode='live';freshFilter=false;if(filtered.length)autoFeedShown=true;persist();render();toast(`Проверка VK: ${filtered.filter(g=>!before.has(g.id)).length} новых подходящих карточек добавлено в ленту.`);},
  onFreshGroups:groups=>{const filtered=groups.filter(isFreshLead);filtered.forEach(g=>freshSessionIds.add(g.id));live=mergeGroups(live,filtered);mode='live';view='discover';freshFilter=true;snapshotMode=true;$('dateBasis').value='id';$('sort').value='id';document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));persist();render();$('feedStatus').textContent='Свежий снимок VK: повторы скрыты, крупные старые сообщества исключены.';},
  onRegisterAutoStart:fn=>{startAutoSearch=fn;if(auth.connected)fn();},
- onShowCandidates:(period='today')=>selectPeriod(period),
+ onShowCandidates:(period='')=>selectPeriod(period),
  onReset:()=>{live=live.map(g=>{if(g.source!=='Наблюдение Mini App')return g;const {observation,...rest}=g;return rest;});persist();render();}
 });
 
