@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.40';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.40';
-import {getBridge} from './vk-start.js?v=11.40';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.40';
-import {initHostedFeed} from './hosted-feed.js?v=11.40';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.41';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.41';
+import {getBridge} from './vk-start.js?v=11.41';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.41';
+import {initHostedFeed} from './hosted-feed.js?v=11.41';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.40';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.40';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.41';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.41';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
