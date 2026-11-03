@@ -1,5 +1,11 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.42';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.42';
+import {isLeadFitGroup} from './vk-data.js?v=11.43';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.43';
+export function syncPeriodButtons(period,root=document){
+  root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
+    const active=(b.dataset.cloudPeriod??b.dataset.period)===period;
+    b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));
+  });
+}
 export function validateFeed(data,now=Date.now()){
   if(data?.version!==1||!Array.isArray(data.groups)||!['ok','waiting'].includes(data.status))throw Error('Некорректный ответ сборщика.');
   if(data.status==='waiting')return {...data,groups:[],stale:false};
@@ -11,6 +17,8 @@ export function validateFeed(data,now=Date.now()){
     if(seen.has(g.id)||g.collectorFeed!==true||!isLeadFitGroup(g)||g.available!==true||
        !hasCandidateInterval(g)||!Number.isFinite(a.from)||!Number.isFinite(a.to)||a.from>a.to||a.to>now||
        !Number.isFinite(g.verifiedAt)||now-g.verifiedAt>3600000||g.verifiedAt>now||
+       !Number.isFinite(g.observation?.wallCheckedAt)||now-g.observation.wallCheckedAt>3600000||g.observation.wallCheckedAt>now||g.observation.wallError||
+       (Number.isFinite(g.observation.oldestObservedPost)&&g.observation.oldestObservedPost<a.from)||
        !Number.isFinite(g.members)||g.members>500||g.wallUnavailable!==false)return false;
     seen.add(g.id);return true;
   })};
@@ -35,7 +43,7 @@ export function coverageText(data){
     'Количество карточек не равно числу созданных в VK групп. Интервал наблюдения не подтверждает регистрацию.';
 }
 export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,url=new URL('./community-feed.json',import.meta.url),timeoutMs=15000}){
-  let pending=null;
+  let pending=null,lastRaw=null;const known=new Set();let addedTotal=0;
   return ()=>{
     if(pending)return pending;
     onState({kind:'loading',title:'Проверяем ленту…',message:'Загружаем последнюю проверку сборщика и применяем выбранный период.'});
@@ -45,7 +53,13 @@ export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,
         const res=await fetchImpl(endpoint,{cache:'no-store',signal:AbortSignal.timeout(timeoutMs)});
         if(!res.ok)throw Error(res.status===404?'Лента ещё не опубликована. Проверьте запуск сборщика.':'Не удалось загрузить ленту. Повторите попытку.');
         let raw;try{raw=await res.json();}catch{throw Error('Сервер вернул некорректную ленту. Откройте журнал сборщика.');}
-        const data=validateFeed(raw,clock());
+        const older=lastRaw&&raw.updatedAt<lastRaw.updatedAt;
+        const data=validateFeed(older?lastRaw:raw,clock());
+        const changed=!!lastRaw&&data.updatedAt>lastRaw.updatedAt;
+        const added=changed?data.groups.filter(g=>!known.has(g.id)).length:0;
+        addedTotal+=added;data.groups.forEach(g=>known.add(g.id));
+        if(!older)lastRaw=raw;
+        data.refresh={checkedAt:clock(),added,addedTotal,olderSnapshotIgnored:!!older};
         const count=onData(data);
         const result=feedOutcome(data,count);onState(result);return result;
       }catch(e){const result={kind:'error',title:'Не удалось обновить подбор',message:e.name==='TimeoutError'||e.name==='AbortError'?'Сервер не ответил за 15 секунд. Нажмите «Обновить подходящие сообщества» ещё раз.':e instanceof TypeError?'Нет соединения с лентой. Проверьте интернет и повторите попытку.':e.message,setup:true};onState(result);return result;}
@@ -54,18 +68,29 @@ export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,
     return pending;
   };
 }
+export function startFeedRefresh(refresh,{doc=document,win=window,every=setInterval,cancel=clearInterval,clock=Date.now}={}){
+  let last=-Infinity;
+  const tick=()=>{if(doc.hidden||clock()-last<5000)return;last=clock();void refresh();};
+  const timer=every(tick,60000);
+  doc.addEventListener('visibilitychange',tick);win.addEventListener('focus',tick);win.addEventListener('online',tick);
+  tick();
+  return ()=>{cancel(timer);doc.removeEventListener('visibilitychange',tick);win.removeEventListener('focus',tick);win.removeEventListener('online',tick);};
+}
 export function initHostedFeed(onUpdate,_seed,options){
   const el=document.getElementById('collectorPanel');
   el.innerHTML=`<div class="sectionheading"><div><h2>Постоянный сборщик</h2><p>Работает на GitHub при закрытом приложении. Без ввода ID.</p></div><span id="cloudBadge">Подключение…</span></div>
     <div class="leadPeriodButtons"><button class="secondary" data-cloud-period="">Все актуальные</button><button class="secondary" data-cloud-period="1h">Появились за последний час</button><button class="secondary" data-cloud-period="1-3h">Появились за 1–3 часа</button><button class="secondary" data-cloud-period="today">Появились сегодня</button></div>
     <button class="primary" id="cloudRefresh">Обновить подходящие сообщества</button>
     <p id="cloudStatus" role="status" aria-live="polite"></p>
+    <p id="cloudRefreshInfo" class="refreshInfo">Автообновление каждую минуту, пока приложение открыто.</p>
     <details><summary>Охват поиска и причины отсева</summary><p id="cloudCoverage"></p></details>
     <div id="cloudSetup" hidden><p>Подключение требуется один раз владельцу приложения. Посетителям ключ не нужен.</p><a class="link" href="https://github.com/German22Fed/vk-leads/settings/secrets/actions" target="_blank" rel="noopener noreferrer">Добавить VK_SERVICE_TOKEN ↗</a> · <a class="link" href="https://github.com/German22Fed/vk-leads/actions/workflows/vk-collector.yml" target="_blank" rel="noopener noreferrer">Запустить сборщик / журнал ошибок ↗</a></div>
     <small>Кандидаты у растущей верхней границы ID: раньше VK возвращал заглушку, теперь — доступное сообщество. Начальная база, повторы и обнаруженные старые посты исключаются. Период — интервал этого перехода, не дата регистрации. Ранее скрытые или восстановленные группы полностью исключить нельзя. Проверки по расписанию примерно раз в 15 минут; возможны задержки.</small>`;
   const status=document.getElementById('cloudStatus'),badge=document.getElementById('cloudBadge'),button=document.getElementById('cloudRefresh');
   const mainButton=document.getElementById('searchBtn'),summary=document.getElementById('searchFeedback');
+  syncPeriodButtons(document.getElementById('period').value);
   const refresh=createFeedLoader({onData:data=>{
+    document.getElementById('cloudRefreshInfo').textContent=`Лента проверена: ${new Date(data.refresh.checkedAt).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})} МСК. Новых карточек за эту сессию: ${data.refresh.addedTotal}. Автообновление — каждую минуту.`+(data.refresh.olderSnapshotIgnored?' Сервер вернул старый снимок; сохранена более свежая лента.':'');
     document.getElementById('cloudCoverage').textContent=coverageText(data);
     onUpdate({connected:false,groups:data.groups,hosted:true});
     document.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
@@ -87,6 +112,5 @@ export function initHostedFeed(onUpdate,_seed,options){
   // Period buttons only choose a criterion; refresh happens from the explicit update button.
   el.querySelectorAll('[data-cloud-period]').forEach(b=>b.onclick=()=>options.onShowCandidates?.(b.dataset.cloudPeriod));
   button.onclick=()=>void search();
-  void refresh();
-  setInterval(()=>{if(!document.hidden)void refresh();},60000);
+  return startFeedRefresh(refresh);
 }

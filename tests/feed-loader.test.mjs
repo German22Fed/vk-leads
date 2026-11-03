@@ -1,11 +1,47 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createFeedLoader,feedOutcome} from '../dist/hosted-feed.js';
+import {createFeedLoader,feedOutcome,validateFeed,startFeedRefresh,syncPeriodButtons} from '../dist/hosted-feed.js';
 import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {runContinuous} from '../server/run-continuous.mjs';
 const url='https://example.org/community-feed.json';
+
+const sample=(id,now)=>({id,name:'Мебель на заказ',collectorFeed:true,available:true,members:5,verifiedAt:now,wallUnavailable:false,
+ observation:{verdict:'candidate_today',appearance:{kind:'candidate',from:now-600000,to:now-300000},wallCheckedAt:now,wallError:null}});
+test('Profile and wall checks expire independently; older original posts reject a card',()=>{
+ const now=10000000000,g=sample(42,now),feed={version:1,status:'ok',updatedAt:now,groups:[g]};
+ assert.equal(validateFeed(feed,now).groups.length,1);
+ for(const patch of [{wallCheckedAt:now-3600001},{wallCheckedAt:now+1},{wallCheckedAt:null},{wallError:'denied'},{oldestObservedPost:now-900000}]){
+  assert.equal(validateFeed({...feed,groups:[{...g,observation:{...g.observation,...patch}}]},now).groups.length,0);
+ }
+});
+test('Successive snapshots add real IDs once, and an older server snapshot cannot roll the feed back',async()=>{
+ let now=10000000000,index=0;const seen=[];
+ const snapshots=[{version:1,status:'ok',updatedAt:now,groups:[sample(1,now)]},{version:1,status:'ok',updatedAt:now+60000,groups:[sample(1,now),sample(2,now)]}];
+ const load=createFeedLoader({url,clock:()=>now,onState(){},onData:d=>{seen.push(d);return d.groups.length;},fetchImpl:async()=>({ok:true,json:async()=>snapshots[index]})});
+ await load();index=1;now+=60000;await load();await load();index=0;await load();
+ assert.deepEqual(seen.map(d=>d.groups.length),[1,2,2,2]);assert.deepEqual(seen.map(d=>d.refresh.added),[0,1,0,0]);
+ assert.equal(seen.at(-1).refresh.addedTotal,1);assert.equal(seen.at(-1).refresh.olderSnapshotIgnored,true);
+});
+test('Refresh resumes on visibility and connectivity without duplicate focus requests',()=>{
+ let now=0,calls=0,interval;const handlers={};const target=()=>({addEventListener:(k,f)=>handlers[k]=f,removeEventListener:k=>delete handlers[k]});
+ const doc={...target(),hidden:false},win=target();
+ const stop=startFeedRefresh(()=>calls++,{doc,win,clock:()=>now,every:f=>(interval=f,1),cancel(){interval=null;}});
+ assert.equal(calls,1);handlers.focus();assert.equal(calls,1);
+ doc.hidden=true;now=60000;interval();assert.equal(calls,1);
+ doc.hidden=false;handlers.visibilitychange();assert.equal(calls,2);
+ now+=6000;handlers.online();assert.equal(calls,3);stop();assert.deepEqual(handlers,{});
+});
+test('Collector and main period controls always display the same persistent selection',()=>{
+ const nodes=['','1h','1-3h','today'].flatMap(period=>['period','cloudPeriod'].map(key=>({dataset:{[key]:period},classList:{toggle(k,v){this[k]=v;}},setAttribute(k,v){this[k]=v;}})));
+ const root={querySelectorAll:()=>nodes};
+ for(const period of ['1h','today','1-3h','']){
+  syncPeriodButtons(period,root);
+  assert.equal(nodes.filter(b=>b.classList.selected).length,2);
+  for(const b of nodes)assert.equal(b['aria-pressed'],String((b.dataset.period??b.dataset.cloudPeriod)===period));
+ }
+});
 test('Concurrent clicks share a request; later searches fetch again and report waiting rather than success',async()=>{
  let resolve,calls=0,updated=0;const states=[];
  const load=createFeedLoader({url,fetchImpl:async()=>{calls++;await new Promise(r=>resolve=r);return {ok:true,json:async()=>({version:1,status:'waiting',groups:[]})};},onState:s=>states.push(s),onData:()=>{updated++;return 0;}});

@@ -2,7 +2,7 @@ name: Collect VK communities
 on:
   push:
     branches: [main]
-    paths: ['server/**']
+    paths: ['server/**', 'dist/vk-data.js', 'dist/collector-engine.js', 'dist/id-discovery.js', '.github/workflows/vk-collector.yml']
   schedule:
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:

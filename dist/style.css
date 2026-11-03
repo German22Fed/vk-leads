@@ -20,3 +20,10 @@
 .modalrow a.primary,.modalrow a.secondary{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box}.recentHeading{flex-wrap:wrap;gap:12px}.recentHeading select{max-width:100%;padding:10px;border:1px solid #dce3ef;border-radius:10px;background:white}.recentPill{white-space:normal}
 
 .searchFeedback{margin:0 0 20px;padding:16px 20px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;color:#273569;line-height:1.6}.searchFeedback[data-state="blocked"],.searchFeedback[data-state="error"]{background:#fff8eb;border-color:#eacb8b;color:#714c16}.searchFeedback[data-state="loading"]{opacity:.8}#cloudSetup{padding:12px 0;line-height:1.8}
+.leadPeriodButtons button,.timePresets [data-period]{display:inline-flex;align-items:center;gap:8px;min-height:46px;border:2px solid #c4cde0;font-size:12px;color:#344466;background:#fff;cursor:pointer}
+.leadPeriodButtons button::before,.timePresets [data-period]::before{content:'○';font-size:17px;line-height:1;width:18px;flex-shrink:0;text-align:center}
+.leadPeriodButtons button:hover,.timePresets [data-period]:hover{border-color:#4f46e5;background:#eef0ff;filter:none}
+.leadPeriodButtons button.selected,.timePresets [data-period].selected{background:#4338ca;border-color:#312e81;color:#fff;box-shadow:0 3px 10px #4338ca30;font-weight:800}
+.leadPeriodButtons button.selected::before,.timePresets [data-period].selected::before{content:'✓'}
+.leadPeriodButtons button:focus-visible,.timePresets [data-period]:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
+#cloudRefreshInfo.refreshInfo{font-size:12px;color:#52617b;line-height:1.6;margin:10px 0 14px}

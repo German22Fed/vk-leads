@@ -34,7 +34,7 @@ const leadMarkers = [
   // Furniture, interiors and made-to-order home goods
   'мебел','кухн','шкаф','диван','матрас','кроват','кресл','стол','стул','интерьер','дизайн','декор','текстиль','штор','светильник','мебельный','кухонный','гардероб','корпусн','мягк','мебель на заказ','кухни на заказ',
   // Construction, renovation and installation
-  'ремонт','строител','отделк','монтаж','электрик','сантех','окн','двер','потолк','натяжн','кровл','фасад','кирпич','бетон','сварк','кондиционер','вентиляц','клининг','уборк','химчист','утеплен','благоустрой','ландшафт','дизайн-проект',
+  'ремонт','строител','отделк','отделоч','монтаж','электрик','сантех','окн','двер','потолк','натяжн','кровл','фасад','кирпич','бетон','сварк','кондиционер','вентиляц','клининг','уборк','химчист','утеплен','благоустрой','ландшафт','дизайн-проект',
   // Experts, education and professional services
   'агентство','студия','центр','школа','курс','обучен','репетитор','детск','садик','логопед','дефектолог','психолог','психотерап','коуч','тренер','консульт','юрист','адвокат','нотариус','бухгалтер','аудитор','риэлтор','недвижим','ипотек','маркетинг','реклам','продвижен','таргет','копирайт','дизайнер','фриланс','эксперт','консалтинг','seo',
   // Retail, local shops, automotive and delivery
@@ -60,10 +60,22 @@ const markerMatches = (name, term) => {
   if (shortLeadMarkers.has(term)) return new RegExp(`(?:^|\\s)${term}(?:$|\\s)`, 'u').test(name);
   return name.includes(term);
 };
+const ambiguousNoise={
+  'бот':'бот(?:ы|ов|а|у|ом|ами|ах)?',
+  'чит':'чит(?:ы|ов|ами|ах|ер[а-яё]*)?',
+  'слив':'слив(?:ы|ов|а|у|ом|ами|ах)?',
+  'мем':'мем(?:ы|ов|а|у|ом|ами|ах|чик[а-яё]*)?'
+};
+const noiseMatches=(name,term)=>{
+  const pattern=ambiguousNoise[term];
+  if(pattern)return new RegExp(`(?:^|[^\\p{L}\\p{N}])${pattern}(?=$|[^\\p{L}\\p{N}])`,'u').test(name);
+  // Match a word/phrase prefix, not characters inside доставка, работы, Тигр.
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}`,'u').test(name);
+};
 export const isLeadFitName = row => {
   if (!isClientFitName(row)) return false;
   const name = cleanGroupName(row).toLowerCase();
-  if (leadNoise.some(term => name.includes(term))) return false;
+  if (leadNoise.some(term => noiseMatches(name,term))) return false;
   // A name must contain an explicit niche or commercial signal. The old
   // two-word fallback admitted names such as “Мама”, “Ozon” and gibberish.
   const hits = leadMarkers.filter(term => markerMatches(name, term));

@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.42';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.42';
-import {getBridge} from './vk-start.js?v=11.42';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.42';
-import {initHostedFeed} from './hosted-feed.js?v=11.42';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.43';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.43';
+import {getBridge} from './vk-start.js?v=11.43';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.43';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.43';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.42';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.42';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.43';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.43';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -23,7 +23,7 @@ const isFreshLead=g=>isVerifiedGroup(g)&&Number.isFinite(g?.members)&&g.members<
 let live=read('radar.live',[]);if(!Array.isArray(live))live=[];live=live.filter(g=>isVerifiedGroup(g));
 const demo=[];
 let serverConnected=false;
-const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?live.filter(g=>g.collectorFeed===true&&g.available===true&&Date.now()-g.verifiedAt<=3600000):live;
+const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?live.filter(g=>g.collectorFeed===true&&g.available===true&&Date.now()-g.verifiedAt<=3600000&&Date.now()-g.observation?.wallCheckedAt<=3600000&&!g.observation.wallError):live;
 const persist=()=>write('radar.'+mode,mode==='demo'?demo:live);
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),5000);}
 function filters(){return {view,query:$('filterQuery').value.trim(),onlyNew:$('onlyNew').checked,exact:$('exact').checked,canMessage:$('canMessage').checked,period:$('period').value,dateBasis:$('dateBasis').value,minHours:$('minHours').value,maxHours:$('maxHours').value,allowDemo:mode==='demo',sort:$('sort').value};}
@@ -40,7 +40,7 @@ function render(){
  const invalid=!byId&&timeWindow(f.period,Date.now(),f.minHours,f.maxHours)===null;
  document.querySelector('.recentIntro').textContent=byId?'Свежий снимок VK без подтверждённой даты создания.':'Выберите, когда сообщество появилось в наблюдении. «Сегодня» — с 00:00 по Москве.';
  $('rangeError').hidden=!invalid;
- document.querySelectorAll('[data-period]').forEach(b=>{const active=b.dataset.period===f.period;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));});
+ syncPeriodButtons(f.period);
  const unknown=all.filter(g=>creationTimestamp(g,mode==='demo')===null).length;
  $('creationNotice').textContent=snapshotMode&&f.dateBasis==='discovered'?'Свежий снимок VK загружен сейчас. После накопления наблюдений периоды будут показывать сообщества, появившиеся именно в выбранном интервале.':appeared?'Показаны кандидаты по переходу ID в доступное состояние. Это оценка новизны, не подтверждённая дата создания; ранее скрытая группа могла существовать раньше.':created?(mode==='demo'?'Демо: время создания вымышленное. Фильтры показывают, как будет работать подбор при наличии точных дат.':('Источник точного времени создания пока не подключён. Без подтверждённой даты: '+unknown+'.')):'Учитывается первое обнаружение в этой базе. Сообщество могло быть создано раньше.';
  if(byId)$('creationNotice').textContent='Показан свежий снимок VK. Точная дата создания неизвестна.';
