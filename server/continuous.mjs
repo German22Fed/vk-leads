@@ -8,6 +8,14 @@ const DAY=86400000, HOUR=3600000;
 export const RECHECK_LIMIT=250;
 const candidate=r=>['candidate','frontier_candidate'].includes(r.appearance?.kind);
 const fields='name,screen_name,photo_200,deactivated,members_count,city,activity,description,has_photo,cover,can_message';
+export function selectRechecks(records,now){
+  const day=Math.floor((now+10800000)/DAY)*DAY-10800000;
+  const bucket=r=>r.appearance.from>=now-HOUR?0:r.appearance.from>=now-3*HOUR?1:r.appearance.from>=day?2:3;
+  return Object.values(records).filter(r=>candidate(r)&&!r.frontierWithdrawn&&r.appearance.to>=now-7*DAY&&
+    r.group&&isLeadFitGroup(r.group)&&verdict(r,now)!=='older'&&
+    !(r.available&&r.group.verifiedAt>now-10*60000&&r.wallCheckedAt>now-10*60000&&!r.wallError))
+    .sort((a,b)=>bucket(a)-bucket(b)||(a.group.verifiedAt||0)-(b.group.verifiedAt||0)).slice(0,RECHECK_LIMIT);
+}
 export function compactState(state,now){
   const rows=Object.values(state.records),keep=new Set(rows.filter(r=>r.id>=state.config.startId).map(r=>r.id));
   for(const r of rows.filter(r=>candidate(r)&&r.appearance.to>=now-7*DAY&&r.group&&isLeadFitGroup(r.group))
@@ -50,14 +58,7 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
   if(run.status!=='ok')throw Error('Цикл VK не завершён. Предыдущая база сохранена.');
   // Recheck candidates even after the moving window passed them. Oldest checked
   // first prevents one set of candidates starving all the following ones.
-  const candidates=Object.values(engine.state.records).filter(r=>candidate(r) && !r.frontierWithdrawn &&
-    r.appearance.to>=clock()-7*DAY && r.group && isLeadFitGroup(r.group) && verdict(r,clock())!=='older')
-    .sort((a,b)=>{
-      // Reserve verification capacity for the selected day's leads first.
-      const day=Math.floor((clock()+10800000)/DAY);
-      const today=r=>Math.floor((r.appearance.from+10800000)/DAY)===day;
-      return Number(today(b))-Number(today(a)) || (a.group.verifiedAt||0)-(b.group.verifiedAt||0);
-    }).slice(0,RECHECK_LIMIT);
+  const candidates=selectRechecks(engine.state.records,clock());
   if(candidates.length){
     for(let offset=0;offset<candidates.length;offset+=99){
     const batch=candidates.slice(offset,offset+99);
