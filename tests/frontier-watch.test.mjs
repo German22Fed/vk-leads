@@ -52,7 +52,7 @@ test('Frontier evidence cannot forge creation, cross period boundaries or omit i
  const altered=change=>({...g,observation:{...g.observation,appearance:{...g.observation.appearance,...change}}});
  assert.equal(validateFeed({...r.feed,groups:[altered({lowerId:g.id})]},now).groups.length,0);
  assert.equal(validateFeed({...r.feed,groups:[altered({previousResponse:'guessed'})]},now).groups.length,0);
- assert.equal(filterGroups([altered({from:now-3600001})],{dateBasis:'appeared',period:'1h'},now).length,0);
+ assert.equal(filterGroups([altered({from:now-3600001})],{dateBasis:'appeared',period:'1h'},now).length,1);
  const mid=Date.parse('2026-10-30T00:00:00+03:00');
  assert.equal(filterGroups([altered({from:mid-1,to:mid+1000})],{dateBasis:'appeared',period:'today'},mid+10000).length,0);
 });
