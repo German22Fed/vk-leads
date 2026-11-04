@@ -16,6 +16,22 @@ test('Profile and wall checks expire independently; older original posts reject 
   assert.equal(validateFeed({...feed,groups:[{...g,observation:{...g.observation,...patch}}]},now).groups.length,0);
  }
 });
+
+test('A delayed snapshot remains visible for recovery and reports a warning',()=>{
+ const now=10000000000,g=sample(42,now-2*3600000),feed={version:1,status:'ok',updatedAt:now-2*3600000,groups:[g]};
+ const result=validateFeed(feed,now);assert.equal(result.stale,false);assert.equal(result.degraded,true);assert.equal(result.groups.length,1);
+ assert.equal(feedOutcome(result,1).kind,'warning');assert.match(feedOutcome(result,1).message,/последний рабочий снимок/i);
+});
+
+test('Temporary collector failure keeps the previous published cards',()=>{
+ const now=10000000000,g=sample(42,now),feed={version:1,status:'ok',updatedAt:now-2*3600000,groups:[g],collector:{status:'error',errorCode:'collection_failed'}};
+ const result=validateFeed(feed,now);assert.equal(result.groups.length,1);assert.equal(feedOutcome(result,1).kind,'warning');
+});
+
+test('Snapshots older than six hours are withheld',()=>{
+ const now=10000000000,g=sample(42,now-7*3600000),feed={version:1,status:'ok',updatedAt:now-7*3600000,groups:[g]};
+ const result=validateFeed(feed,now);assert.equal(result.stale,true);assert.equal(result.groups.length,0);assert.equal(feedOutcome(result,0).kind,'error');
+});
 test('Successive snapshots add real IDs once, and an older server snapshot cannot roll the feed back',async()=>{
  let now=10000000000,index=0;const seen=[];
  const snapshots=[{version:1,status:'ok',updatedAt:now,groups:[sample(1,now)]},{version:1,status:'ok',updatedAt:now+60000,groups:[sample(1,now),sample(2,now)]}];

@@ -3,6 +3,9 @@ name: Publish VK Leads to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'dist/community-feed.json'
+      - 'collector-data/state.json'
   workflow_dispatch:
 
 permissions:
@@ -36,4 +39,3 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
-

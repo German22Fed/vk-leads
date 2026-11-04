@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.44.1';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.44.1';
+import {isLeadFitGroup} from './vk-data.js?v=11.44.2';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.44.2';
 export function syncPeriodButtons(period,root=document){
   root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
     const active=(b.dataset.cloudPeriod??b.dataset.period)===period;
@@ -10,14 +10,15 @@ export function validateFeed(data,now=Date.now()){
   if(data?.version!==1||!Array.isArray(data.groups)||!['ok','waiting'].includes(data.status))throw Error('Некорректный ответ сборщика.');
   if(data.status==='waiting')return {...data,groups:[],stale:false};
   if(!Number.isFinite(data.updatedAt)||data.updatedAt>now+60000)throw Error('Некорректное время обновления.');
-  const stale=now-data.updatedAt>3600000;
+  const age=Math.max(0,now-data.updatedAt),stale=age>6*3600000,degraded=age>3600000;
+  const maxAge=stale?3600000:degraded?6*3600000:3600000;
   const seen=new Set();
-  return {...data,stale,groups:stale?[]:data.groups.filter(g=>{
+  return {...data,stale,degraded,groups:stale?[]:data.groups.filter(g=>{
     const a=g.observation?.appearance;
     if(seen.has(g.id)||g.collectorFeed!==true||!isLeadFitGroup(g)||g.available!==true||
        !hasCandidateInterval(g)||!Number.isFinite(a.from)||!Number.isFinite(a.to)||a.from>a.to||a.to>now||
-       !Number.isFinite(g.verifiedAt)||now-g.verifiedAt>3600000||g.verifiedAt>now||
-       !Number.isFinite(g.observation?.wallCheckedAt)||now-g.observation.wallCheckedAt>3600000||g.observation.wallCheckedAt>now||g.observation.wallError||
+       !Number.isFinite(g.verifiedAt)||now-g.verifiedAt>maxAge||g.verifiedAt>now||
+       !Number.isFinite(g.observation?.wallCheckedAt)||now-g.observation.wallCheckedAt>maxAge||g.observation.wallCheckedAt>now||g.observation.wallError||
        (Number.isFinite(g.observation.oldestObservedPost)&&g.observation.oldestObservedPost<a.from)||
        !Number.isFinite(g.members)||g.members>500||g.wallUnavailable!==false)return false;
     seen.add(g.id);return true;
@@ -26,11 +27,13 @@ export function validateFeed(data,now=Date.now()){
 export function feedOutcome(data,count=data.groups.length){
   const code=data.collector?.errorCode;
   if(code==='missing_token')return {kind:'blocked',title:'Сборщик не подключён',message:'В GitHub отсутствует VK_SERVICE_TOKEN. Добавьте сервисный ключ и запустите сборщик. Вход в VK внутри приложения не подключает сервер.',setup:true};
-  if(data.collector?.status==='error')return {kind:'error',title:'Ошибка серверного сбора',message:'Последняя проверка VK завершилась ошибкой. Проверьте ключ и доступ к groups.getById / wall.get в журнале сборщика. Новые данные не получены.',setup:true};
+  if(data.collector?.status==='error'&&data.groups.length)return {kind:'warning',title:'Проверка VK задержана',message:`Последний успешный снимок сохранён: ${data.groups.length} карточек доступны. Сборщик повторит проверку автоматически. Причина последнего запуска: ${code==='collection_failed'?'временная ошибка VK или сети':'ошибка запуска'}.`,setup:false};
+  if(data.collector?.status==='error')return {kind:'error',title:'Ошибка серверного сбора',message:'Успешного снимка пока нет. Сборщик повторит запуск автоматически; проверьте журнал только если ошибка сохраняется несколько часов.',setup:true};
   if(data.status==='waiting')return {kind:'blocked',title:'Поиск ещё не активирован',message:'Сборщик ещё не опубликовал первую успешную проверку. Добавьте VK_SERVICE_TOKEN в GitHub Secrets и запустите Collect VK communities.',setup:true};
-  if(data.stale)return {kind:'error',title:'Сборщик давно не обновлялся',message:'Больше часа нет успешных проверок. Устаревшие карточки скрыты. Откройте журнал сборщика.',setup:true};
+  if(data.stale)return {kind:'error',title:'Сборщик временно недоступен',message:'Последний снимок старше шести часов и больше не используется для выдачи. GitHub Actions продолжит автоматические попытки; откройте журнал, если задержка сохраняется.',setup:true};
   if(data.observation?.checked>0 && data.observation.tracked===0 && !data.observation.frontierProbes)return {kind:'blocked',title:'VK отвечает, но история новых ID не накоплена',message:`Проверено ID: ${data.observation.checked}. Доступных сообществ: ${data.observation.usable}. Ответов об удалённых или недоступных группах: ${data.observation.deleted}. Такие ответы не доказывают, что сообщество ещё не создано, и не попадают в ленту. Сборщик продолжит проверки по расписанию, но появление карточек пока не подтверждено.`,setup:false};
-  return {kind:'ready',title:count?'Свежие кандидаты обновлены':'Подходящих кандидатов пока нет',message:`В выбранном периоде с текущими фильтрами: ${count}. Всего в общей ленте: ${data.groups.length}. Последняя успешная проверка: ${new Date(data.updatedAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} МСК.`+(data.observation?` Проверено ID: ${data.observation.checked}; доступны: ${data.observation.usable}; заглушки: ${data.observation.deleted}.`:'')+(count?' Дата регистрации не подтверждена.':' Карточки появятся только после подходящего перехода ID и проверки стены. Изменение фильтра не создаёт новые данные.'),setup:false};
+  const delayed=data.degraded;
+  return {kind:delayed?'warning':'ready',title:delayed?'Обновление задержано':count?'Свежие кандидаты обновлены':'Подходящих кандидатов пока нет',message:`В выбранном периоде с текущими фильтрами: ${count}. Всего в общей ленте: ${data.groups.length}. Последняя успешная проверка: ${new Date(data.updatedAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} МСК.`+(delayed?' Показан последний рабочий снимок; GitHub Actions продолжит обновление автоматически.':'')+(data.observation?` Проверено ID: ${data.observation.checked}; доступны: ${data.observation.usable}; заглушки: ${data.observation.deleted}.`:'')+(count?' Дата регистрации не подтверждена.':' Карточки появятся после подходящего перехода ID и проверки стены. Изменение фильтра не создаёт новые данные.'),setup:false};
 }
 export function coverageText(data){
   const c=data.coverage;if(!c)return 'Полная статистика охвата появится после следующего запуска сборщика.';

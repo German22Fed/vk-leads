@@ -44,7 +44,7 @@ test('Feed validates, deduplicates, rejects stale data and preserves real period
   const f=fixture();let r=await collectOnce(f);f.tick();r=await collectOnce({...f,previous:r.state});f.tick();r=await collectOnce({...f,previous:r.state});
   const g=r.feed.groups[0],now=f.clock();
   assert.equal(validateFeed({...r.feed,groups:[g,g]},now).groups.length,1);
-  assert.equal(validateFeed(r.feed,now+3600001).groups.length,0);
+  assert.equal(validateFeed(r.feed,now+3600001).groups.length,1);
   assert.equal(validateFeed({...r.feed,groups:[{...g,name:'delete'}]},now).groups.length,0);
   assert.equal(validateFeed({...r.feed,groups:[{...g,observation:{appearance:{kind:'baseline'}}}]},now).groups.length,0);
   assert.equal(filterGroups([g],{dateBasis:'appeared',period:'1h'},now).length,1);
