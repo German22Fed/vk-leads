@@ -5,8 +5,11 @@ import {normalizeGroup} from '../dist/core.js';
 import {beginFrontierCycle,observeFrontierBatch,compactFrontierWatch} from './frontier-watch.mjs';
 
 const DAY=86400000, HOUR=3600000;
-export const RECHECK_LIMIT=400;
-export const SCAN_WIDTH=6000;
+// Keep a wider moving window and a larger verification queue so one delayed
+// GitHub run does not leave the UI with a tiny handful of cards. The public
+// feed still publishes only verified, deduplicated candidates.
+export const RECHECK_LIMIT=800;
+export const SCAN_WIDTH=12000;
 const candidate=r=>['candidate','frontier_candidate'].includes(r.appearance?.kind);
 const fields='name,screen_name,photo_200,deactivated,members_count,city,activity,description,has_photo,cover,can_message';
 export function selectRechecks(records,now,limit=RECHECK_LIMIT){
@@ -139,3 +142,4 @@ export function coverageReport(state,now,groups){
   }
   return {counts,periods,tracked:rows.length};
 }
+

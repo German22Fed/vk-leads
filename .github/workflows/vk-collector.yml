@@ -4,14 +4,14 @@ on:
     branches: [main]
     paths: ['server/**', 'dist/vk-data.js', 'dist/collector-engine.js', 'dist/id-discovery.js', '.github/workflows/vk-collector.yml']
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 permissions:
   contents: write
   pages: write
   id-token: write
 concurrency:
-  group: pages
+  group: vk-collector
   cancel-in-progress: false
 jobs:
   collect:
@@ -57,3 +57,4 @@ jobs:
       - name: Report collection failure after publishing diagnostics
         if: steps.collection.outcome == 'failure'
         run: exit 1
+

@@ -19,7 +19,7 @@ function setup(){
 }
 test('Live-shaped DELETED responses become explicitly labelled frontier candidates, never creation dates',async()=>{
  const f=setup();let r=await collectOnce(f);
- assert.equal(r.feed.groups.length,0);assert.equal(r.feed.observation.frontierProbes,6000);
+ assert.equal(r.feed.groups.length,0);assert.equal(r.feed.observation.frontierProbes,12000);
  f.tick();r=await collectOnce({...f,previous:r.state});
  assert.deepEqual(r.feed.groups.map(g=>g.id),[101]);
  const g=r.feed.groups[0];assert.equal(g.observation.appearance.kind,'frontier_candidate');
@@ -56,3 +56,4 @@ test('Frontier evidence cannot forge creation, cross period boundaries or omit i
  const mid=Date.parse('2026-10-30T00:00:00+03:00');
  assert.equal(filterGroups([altered({from:mid-1,to:mid+1000})],{dateBasis:'appeared',period:'today'},mid+10000).length,0);
 });
+

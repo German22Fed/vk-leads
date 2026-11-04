@@ -19,7 +19,7 @@ if(!token){await publishFailure('missing_token');log.error('Добавьте VK_
 else try{
   let previous=null;
   try{previous=JSON.parse(await readFile(file('collector-data/state.json'),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-  const {state,feed}=await collectOnce({previous,api:vkClient({getToken:()=>token,delay:600})});
+  const {state,feed}=await collectOnce({previous,api:vkClient({getToken:()=>token,delay:400})});
   await mkdir(file('collector-data'),{recursive:true});
   await writeFile(file('collector-data/state.tmp'),JSON.stringify(state));
   await writeFile(file('dist/community-feed.tmp'),JSON.stringify(feed));
@@ -29,3 +29,4 @@ else try{
 }catch{await publishFailure('collection_failed');log.error('Сбор не завершён. Проверьте доступ ключа к groups.getById и wall.get. Предыдущие данные сохранены; состояние ошибки опубликовано.');return 1;}
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))process.exitCode=await runContinuous();
+

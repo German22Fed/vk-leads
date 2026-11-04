@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.44.2';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.44.2';
-import {getBridge} from './vk-start.js?v=11.44.2';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.44.2';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.44.2';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.45.0';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.45.0';
+import {getBridge} from './vk-start.js?v=11.45.0';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.45.0';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.45.0';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.44.2';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.44.2';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.45.0';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.45.0';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -22,8 +22,12 @@ const isVerifiedGroup=g=>isLeadFitGroup(g)&&Number.isFinite(g?.verifiedAt);
 const isFreshLead=g=>isVerifiedGroup(g)&&Number.isFinite(g?.members)&&g.members<=10000;
 let live=read('radar.live',[]);if(!Array.isArray(live))live=[];live=live.filter(g=>isVerifiedGroup(g));
 const demo=[];
-let serverConnected=false;
-const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?live.filter(g=>g.collectorFeed===true&&g.available===true&&Date.now()-g.verifiedAt<=3600000&&Date.now()-g.observation?.wallCheckedAt<=3600000&&!g.observation.wallError):live;
+let serverConnected=false,hostedSnapshotUpdatedAt=0;
+const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?
+  live.filter(g=>g.collectorFeed===true&&g.available===true&&
+    Number.isFinite(g.verifiedAt)&&Number.isFinite(g.observation?.wallCheckedAt)&&
+    !g.observation.wallError&&(!hostedSnapshotUpdatedAt||Date.now()-hostedSnapshotUpdatedAt<=6*3600000)):
+  live;
 const persist=()=>write('radar.'+mode,mode==='demo'?demo:live);
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),5000);}
 function filters(){return {view,query:$('filterQuery').value.trim(),onlyNew:$('onlyNew').checked,needsDesign:$('needsDesign').checked,exact:$('exact').checked,canMessage:$('canMessage').checked,period:$('period').value,dateBasis:$('dateBasis').value,minHours:$('minHours').value,maxHours:$('maxHours').value,allowDemo:mode==='demo',sort:$('sort').value};}
@@ -311,7 +315,7 @@ render();
 setInterval(()=>{if(!document.hidden&&view!=='templates')render();},60000);
 
 let collectorSignature='';
-(hostedFeed?initHostedFeed:initCollector)(s=>{serverConnected=s.connected;if(s.hosted){const ids=new Set(s.groups.map(g=>g.id));live=live.map(g=>g.collectorFeed&&!ids.has(g.id)?{...g,available:false}:g);freshFilter=false;}if(freshFilter&&freshObservationStartedAt){for(const g of s.groups||[]){const appearedAt=g.observation?.appearance?.to;if(g.observation?.appearance?.kind==='candidate'&&Number.isFinite(appearedAt)&&appearedAt>=freshObservationStartedAt)freshSessionIds.add(g.id);}}const signature=JSON.stringify(s.groups);if(signature!==collectorSignature){collectorSignature=signature;live=mergeGroups(live,(s.groups||[]).filter(isVerifiedGroup));mode='live';persist();}render();},()=>live.filter(g=>isVerifiedGroup(g)).map(g=>g.id),{
+(hostedFeed?initHostedFeed:initCollector)(s=>{serverConnected=s.connected;if(s.hosted){hostedSnapshotUpdatedAt=Number.isFinite(s.updatedAt)?s.updatedAt:hostedSnapshotUpdatedAt;const ids=new Set(s.groups.map(g=>g.id));live=live.map(g=>g.collectorFeed&&!ids.has(g.id)?{...g,available:false}:g);freshFilter=false;}if(freshFilter&&freshObservationStartedAt){for(const g of s.groups||[]){const appearedAt=g.observation?.appearance?.to;if(g.observation?.appearance?.kind==='candidate'&&Number.isFinite(appearedAt)&&appearedAt>=freshObservationStartedAt)freshSessionIds.add(g.id);}}const signature=JSON.stringify(s.groups);if(signature!==collectorSignature){collectorSignature=signature;live=mergeGroups(live,(s.groups||[]).filter(isVerifiedGroup));mode='live';persist();}render();},()=>live.filter(g=>isVerifiedGroup(g)).map(g=>g.id),{
  api,isConnected:()=>auth.connected,onConnect:settingsModal,onSearch:searchModal,
  onRegisterSearch:fn=>{hostedSearch=fn;},
  onFreshStart:()=>{freshSessionIds=new Set();freshObservationStartedAt=Date.now();freshFilter=true;mode='live';render();},
@@ -321,3 +325,4 @@ let collectorSignature='';
  onShowCandidates:(period='')=>selectPeriod(period),
  onReset:()=>{live=live.map(g=>{if(g.source!=='Наблюдение Mini App')return g;const {observation,...rest}=g;return rest;});persist();render();}
 });
+

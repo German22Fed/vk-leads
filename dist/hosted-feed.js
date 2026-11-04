@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.44.2';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.44.2';
+import {isLeadFitGroup} from './vk-data.js?v=11.45.0';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.45.0';
 export function syncPeriodButtons(period,root=document){
   root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
     const active=(b.dataset.cloudPeriod??b.dataset.period)===period;
@@ -96,7 +96,7 @@ export function initHostedFeed(onUpdate,_seed,options){
   const refresh=createFeedLoader({onData:data=>{
     document.getElementById('cloudRefreshInfo').textContent=`Лента проверена: ${new Date(data.refresh.checkedAt).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})} МСК. Новых карточек за эту сессию: ${data.refresh.addedTotal}. Автообновление — каждую минуту.`+(data.refresh.olderSnapshotIgnored?' Сервер вернул старый снимок; сохранена более свежая лента.':'');
     document.getElementById('cloudCoverage').textContent=coverageText(data);
-    onUpdate({connected:false,groups:data.groups,hosted:true});
+    onUpdate({connected:false,groups:data.groups,hosted:true,updatedAt:data.updatedAt,degraded:data.degraded});
     // Period counts are rendered by the app with personal statuses and filters.
     return Number(document.getElementById('listCount').textContent)||0;
   },onState:s=>{
@@ -112,3 +112,4 @@ export function initHostedFeed(onUpdate,_seed,options){
   button.onclick=()=>void search();
   return startFeedRefresh(refresh);
 }
+
