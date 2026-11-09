@@ -1,4 +1,4 @@
-import {isUsableGroup} from './vk-data.js?v=11.48.7';
+import {isUsableGroup} from './vk-data.js?v=11.48.8';
 
 export function errorText(error, secret = '') {
   const data = error?.error_data || error?.error || error?.data || error;
@@ -22,6 +22,8 @@ export function isVkHost(win = window) {
   const host = String(win.location?.hostname || '').toLowerCase();
   const ua = String(win.navigator?.userAgent || '').toLowerCase();
   const query = new URLSearchParams(win.location?.search || '');
+  const hash = new URLSearchParams(String(win.location?.hash || '').replace(/^#\??/, ''));
+  const referrer = String(win.document?.referrer || '').toLowerCase();
   // Loading the Bridge library on the public site does not make it a VK host.
   // Mobile VK can, however, run a Mini App in an embedded WebView without an
   // iframe, a vk.ru hostname, or a stable user-agent marker.  The Bridge
@@ -31,9 +33,12 @@ export function isVkHost(win = window) {
   let bridgeEmbedded = false;
   try {
     const bridge = win.vkBridge || win.vkConnect;
-    bridgeEmbedded = Boolean(bridge?.isEmbedded?.() || bridge?.isWebView?.());
+    bridgeEmbedded = Boolean(bridge?.isEmbedded?.() || bridge?.isWebView?.() || bridge?.isIframe?.());
   } catch {}
-  return win.parent !== win || bridgeEmbedded || Boolean(win.AndroidBridge || win.webkit?.messageHandlers?.VKWebAppClose || win.webkit?.messageHandlers?.VKWebAppInit || win.ReactNativeWebView) || /(^|\.)vk\.(ru|com)$/.test(host) || /vk(?:androidapp|[_-]ios|webapp)/.test(ua) || Boolean(query.get('vk_app_id') || query.get('vk_platform') || query.get('vk_user_id'));
+  const launchParams = ['vk_app_id','vk_platform','vk_user_id','sign'];
+  const hasLaunchParams = launchParams.some(key => query.has(key) || hash.has(key));
+  const vkReferrer = /(^|:\/\/)([^/]+\.)?vk\.(ru|com)(\/|$)/.test(referrer);
+  return win.parent !== win || bridgeEmbedded || vkReferrer || Boolean(win.AndroidBridge || win.webkit?.messageHandlers?.VKWebAppClose || win.webkit?.messageHandlers?.VKWebAppInit || win.ReactNativeWebView) || /(^|\.)vk\.(ru|com)$/.test(host) || /vk(?:androidapp|[_-]ios|webapp)/.test(ua) || hasLaunchParams;
 }
 
 // Host initialization is separate from user authorization and must happen at launch.
