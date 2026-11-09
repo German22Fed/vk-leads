@@ -54,10 +54,16 @@ const leadNoise = [
   // Non-commercial projects and competitor/creator communities are not
   // outreach leads for a design studio.
   'православ','подростк','декрет','нейрокоррекц','нейро','креатор','creator','ai','искусствен','лагер','летний лагерь','квн','техникум','университет','институт','вуз','гбдоу','детский сад','родитель','семья читает','фан-клуб','сообщество дизайнер','сообщество дизайнеров',
+  // Hobby, editorial and generic public pages are not paid-service leads.
+  'книжн','читател','читаю','ведическ','некоммерч','волшебств','музыкальн','танцевальн коллектив','клуб любител','официальная группа',
   // Large marketplaces and generic platforms are not individual design leads.
   'ozon','озон','wildberries','вайлдберриз','алиэкспресс','aliexpress','авито','яндекс маркет','сбермаркет','маркетплейс'
 ];
 const shortLeadMarkers = new Set(['бар','spa','seo','имя','опт','тату','йог','сыр','вин','чай','кофе']);
+const genericLeadNames = new Set([
+  'спорт','музыка','свадьба','бар','стол','магазин','маркет','центр','студия','сервис','услуги','мастер','проект','команда','компания',
+  'подарки','туризм','путешествия','цветы','техника','обувь','одежда','здоровье','организация','организации','союз организаций'
+]);
 const markerMatches = (name, term) => {
   if (term.includes(' ')) return name.includes(term);
   if (shortLeadMarkers.has(term)) return new RegExp(`(?:^|\\s)${term}(?:$|\\s)`, 'u').test(name);
@@ -81,6 +87,12 @@ export const isLeadFitName = row => {
   if (!isClientFitName(row)) return false;
   const name = cleanGroupName(row).toLowerCase();
   if (leadNoise.some(term => noiseMatches(name,term))) return false;
+  const compactName = name.replace(/[«»"'“”]/g, '').replace(/\s+/g, ' ').trim();
+  if (genericLeadNames.has(compactName)) return false;
+  // VK's frontier can return concatenated placeholder-like names. Keep
+  // genuine one-word brands and short service names, but reject long runs of
+  // letters with no separators (for example магазинпродажиинструментов).
+  if (/^[\p{L}\d]+$/u.test(compactName) && compactName.length > 20) return false;
   if (/(?:работа|заработок)\s+(?:с\s+телефона|на\s+дому|без\s+вложений)|пассивный\s+доход|(?:клуб|группа)\s+любителей\s+(?:фотограф|музык|путешеств)/u.test(name)) return false;
   // A name must contain an explicit niche or commercial signal. The old
   // two-word fallback admitted names such as “Мама”, “Ozon” and gibberish.
