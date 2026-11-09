@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.45.1';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.45.1';
-import {getBridge} from './vk-start.js?v=11.45.1';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.45.1';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.45.1';
+import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.46.0';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.46.0';
+import {getBridge} from './vk-start.js?v=11.46.0';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.46.0';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.46.0';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.45.1';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.45.1';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.46.0';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.46.0';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -17,12 +17,16 @@ const auth = new VkConnection({getBridge,onChange:()=>renderConnection()});
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
 function write(key,data){try{localStorage.setItem(key,JSON.stringify(data));return true;}catch{toast('Не удалось сохранить данные в браузере. Сделайте экспорт базы.');return false;}}
 let settings=read('radar.settings',{}), template=read('radar.template',DEFAULT_TEMPLATE);
-if(read('radar.template.version','')!=='kg-design-v1'){template=DEFAULT_TEMPLATE;write('radar.template',template);write('radar.template.version','kg-design-v1');}
+if(read('radar.template.version','')!=='grm-studio-v1'){template=DEFAULT_TEMPLATE;write('radar.template',template);write('radar.template.version','grm-studio-v1');}
 const isVerifiedGroup=g=>isLeadFitGroup(g)&&Number.isFinite(g?.verifiedAt);
 const isFreshLead=g=>isVerifiedGroup(g)&&Number.isFinite(g?.members)&&g.members<=10000;
 let live=read('radar.live',[]);if(!Array.isArray(live))live=[];live=live.filter(g=>isVerifiedGroup(g));
 const demo=[];
 let serverConnected=false,hostedSnapshotUpdatedAt=0;
+function restoreViewport(viewport){
+ const apply=()=>{try{if(Math.abs(window.scrollX-viewport.x)>1||Math.abs(window.scrollY-viewport.y)>1)window.scrollTo({left:viewport.x,top:viewport.y,behavior:'auto'});}catch{};if(viewport.focusId){const el=document.getElementById(viewport.focusId);if(el&&el!==document.activeElement)try{el.focus({preventScroll:true});}catch{}}};
+ apply();if(typeof requestAnimationFrame==='function')requestAnimationFrame(apply);
+}
 const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?
   live.filter(g=>g.collectorFeed===true&&g.available===true&&
     Number.isFinite(g.verifiedAt)&&Number.isFinite(g.observation?.wallCheckedAt)&&
@@ -33,6 +37,7 @@ function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clea
 function filters(){return {view,query:$('filterQuery').value.trim(),onlyNew:$('onlyNew').checked,needsDesign:$('needsDesign').checked,exact:$('exact').checked,canMessage:$('canMessage').checked,period:$('period').value,dateBasis:$('dateBasis').value,minHours:$('minHours').value,maxHours:$('maxHours').value,allowDemo:mode==='demo',sort:$('sort').value};}
 const statuses={new:'Не обработано',opened:'Диалог открыт',sent:'Предложение отправлено',replied:'Ответили',client:'Клиент',hidden:'Не подходит'};
 function render(){
+ const viewport={x:window.scrollX,y:window.scrollY,focusId:document.activeElement?.id||''};
  const all=groups(), f=filters(), baseList=filterGroups(all,f), list=freshFilter&&view==='discover'?baseList.filter(g=>freshSessionIds.has(g.id)):baseList;
  const created=f.dateBasis==='created',appeared=f.dateBasis==='appeared',byId=f.dateBasis==='id';
  $('recentTitle').textContent=byId?'Снимок последних ID':created?'Подтверждённая дата создания':appeared?'Свежие кандидаты по росту ID':'Первое обнаружение в базе';
@@ -58,7 +63,7 @@ function render(){
  $('emptyText').textContent=hostedFeed&&view==='discover'?'Нет непросмотренных кандидатов под выбранные условия. Обработанные находятся в «В работе». Снимите фильтр оформления или выберите другой период. Обновление загружает последнюю проверку сборщика; новые карточки появляются после серверного сбора.':freshFilter&&view==='discover'?'Нажмите кнопку периода, чтобы обновить подбор. Повторы скрываются.':snapshotMode?'Измените направление поиска или повторите проверку VK.':appeared?'Нажмите «Найти подходящие сообщества» и оставьте Mini App открытым для наблюдения VK.':created&&mode==='live'?'Точная дата создания не подтверждена VK.':'Измените период или направление поиска.';
  $('totalStat').textContent=all.length;$('newStat').textContent=all.filter(g=>!g.seen&&g.status!=='hidden').length;$('newChip').textContent=$('newStat').textContent;$('matchStat').textContent=all.filter(g=>g.posts>=2&&g.posts<=3&&g.avatar===true&&g.cover===true&&g.status!=='hidden').length;$('workStat').textContent=all.filter(g=>!['new','hidden'].includes(g.status)).length;$('savedCount').textContent=all.filter(g=>g.saved).length;$('listCount').textContent=list.length;
  $('demoBanner').hidden=mode!=='demo';renderConnection();
- $('cards').innerHTML=list.map(g=>{const s=score(g);const pic=safeImage(g.photo),cover=safeImage(g.coverUrl);return `<article class="card" data-id="${g.id}"><div class="cover" style="background:${g.demo?g.bg:'#e8edf5'};color:${g.demo?g.ink:'#7d8ea8'}">${cover?`<img src="${cover}" alt="Обложка сообщества" loading="lazy" referrerpolicy="no-referrer">`:`<div class="coverart"><div>${esc(g.art||'сообщество')}<span>${esc(g.artSub||'ВКонтакте')}</span></div></div>`}${created&&creationTimestamp(g,mode==='demo')!==null?'<span class="newbadge">◷ ДАТА СОЗДАНИЯ'+(g.demo?' · ДЕМО':'')+'</span>':!g.seen?'<span class="newbadge">● НОВОЕ ДЛЯ ВАС</span>':''}<button class="bookmark ${g.saved?'selected':''}" data-action="save" aria-label="${g.saved?'Убрать из сохранённых':'Сохранить'}">${g.saved?'★':'☆'}</button></div><div class="cardbody"><div class="identity"><div class="avatar" ${g.demo?`style="background:${g.bg};color:${g.ink}"`:''}>${pic?`<img src="${pic}" alt="" loading="lazy" referrerpolicy="no-referrer">`:esc(g.monogram||g.name[0])}</div><div><h3 title="${esc(g.name)}">${esc(g.name)}</h3><p>${esc(g.category)} · ${esc(g.city)}</p></div></div><div class="numbers"><span>♧ <b>${g.members??'—'}</b> подписчиков</span><span>▤ <b>${g.posts??'—'}</b> поста / постов</span></div><div class="tags"><span class="tag good">✓ Данные VK проверены · ${date(g.verifiedAt)}</span>${g.observation?.appearance?.kind==='frontier_candidate'?'<span class="tag">Кандидат по росту ID · создание не подтверждено</span>':''}<span class="tag ${g.avatar?'good':''}">${g.avatar===null?'?':g.avatar?'✓':'−'} Аватарка</span><span class="tag ${g.cover?'good':''}">${g.cover===null?'?':g.cover?'✓':'−'} Обложка</span><span class="tag ${g.canMessage?'good':''}">${g.canMessage===null?'?':g.canMessage?'✓':'−'} Сообщения</span></div><div class="priority"><span>✧</span>${s.value>=80?'Высокий приоритет':s.value>=50?'Есть потенциал':'Нужна оценка'}<b>${s.value} / 100</b></div><p class="reason">${esc(g.posts>=2&&g.posts<=3?'Мало публикаций — повод предложить единый стиль':g.wallUnavailable?'Стена недоступна: число постов не определено':'Проверьте, что можно улучшить в оформлении')}</p><div class="cardactions"><button class="messagebtn" data-action="message" ${g.demo||g.canMessage===false?'disabled':''}>↗ &nbsp; ${g.canMessage===false?'Сообщения закрыты':g.canMessage===true?'Написать в ВК':'Проверить и открыть диалог'}</button><button class="details" data-action="sent" title="Отметить отправку вручную и убрать из свежей ленты">Уже написал</button><button class="details" data-action="details">Подробнее</button></div><div class="cardfoot"><span>${appeared?'Переход ID: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):(created?'Создано':'Найдено')+' '+date(created?creationTimestamp(g,mode==='demo'):g.firstSeen)} · ${esc(statuses[g.status]||g.status)}</span><button data-action="hide">Не подходит</button></div></div></article>`;}).join('');$('empty').hidden=list.length>0;
+ $('cards').innerHTML=list.map(g=>{const s=score(g);const pic=safeImage(g.photo),cover=safeImage(g.coverUrl);return `<article class="card" data-id="${g.id}"><div class="cover" style="background:${g.demo?g.bg:'#e8edf5'};color:${g.demo?g.ink:'#7d8ea8'}">${cover?`<img src="${cover}" alt="Обложка сообщества" loading="lazy" referrerpolicy="no-referrer">`:`<div class="coverart"><div>${esc(g.art||'сообщество')}<span>${esc(g.artSub||'ВКонтакте')}</span></div></div>`}${created&&creationTimestamp(g,mode==='demo')!==null?'<span class="newbadge">◷ ДАТА СОЗДАНИЯ'+(g.demo?' · ДЕМО':'')+'</span>':!g.seen?'<span class="newbadge">● НОВОЕ ДЛЯ ВАС</span>':''}<button class="bookmark ${g.saved?'selected':''}" data-action="save" aria-label="${g.saved?'Убрать из сохранённых':'Сохранить'}">${g.saved?'★':'☆'}</button></div><div class="cardbody"><div class="identity"><div class="avatar" ${g.demo?`style="background:${g.bg};color:${g.ink}"`:''}>${pic?`<img src="${pic}" alt="" loading="lazy" referrerpolicy="no-referrer">`:esc(g.monogram||g.name[0])}</div><div><h3 title="${esc(g.name)}">${esc(g.name)}</h3><p>${esc(g.category)} · ${esc(g.city)}</p></div></div><div class="numbers"><span>♧ <b>${g.members??'—'}</b> подписчиков</span><span>▤ <b>${g.posts??'—'}</b> поста / постов</span></div><div class="tags"><span class="tag good">✓ Данные VK проверены · ${date(g.verifiedAt)}</span>${g.observation?.appearance?.kind==='frontier_candidate'?'<span class="tag">Кандидат по росту ID · создание не подтверждено</span>':''}<span class="tag ${g.avatar?'good':''}">${g.avatar===null?'?':g.avatar?'✓':'−'} Аватарка</span><span class="tag ${g.cover?'good':''}">${g.cover===null?'?':g.cover?'✓':'−'} Обложка</span><span class="tag ${g.canMessage?'good':''}">${g.canMessage===null?'?':g.canMessage?'✓':'−'} Сообщения</span></div><div class="priority"><span>✧</span>${s.value>=80?'Высокий приоритет':s.value>=50?'Есть потенциал':'Нужна оценка'}<b>${s.value} / 100</b></div><p class="reason">${esc(g.posts>=2&&g.posts<=3?'Мало публикаций — повод предложить единый стиль':g.wallUnavailable?'Стена недоступна: число постов не определено':'Проверьте, что можно улучшить в оформлении')}</p><div class="cardactions"><button class="messagebtn" data-action="message" ${g.demo||g.canMessage===false?'disabled':''}>↗ &nbsp; ${g.canMessage===false?'Сообщения закрыты':'Открыть чат с предложением'}</button><button class="details" data-action="sent" title="Отметить отправку вручную и убрать из свежей ленты">Уже написал</button><button class="details" data-action="details">Подробнее</button></div><div class="cardfoot"><span>${appeared?'Переход ID: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):(created?'Создано':'Найдено')+' '+date(created?creationTimestamp(g,mode==='demo'):g.firstSeen)} · ${esc(statuses[g.status]||g.status)}</span><button data-action="hide">Не подходит</button></div></div></article>`;}).join('');$('empty').hidden=list.length>0;restoreViewport(viewport);
 }
 function modal(title,html){$('modalTitle').textContent=title;$('modalBody').innerHTML=html;if(!$('modal').open)$('modal').showModal();}
 function deleteLocalData(){
@@ -94,7 +99,13 @@ $('cards').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)ret
  if(b.dataset.action==='sent'){setStatus(g,'sent');toast('Отмечено как отправленное. Карточка находится в «В работе».');return;}
  if(b.dataset.action==='hide'){g.status='hidden';persist();render();toast('Убрано из ленты. Вернуть можно в разделе «В работе».');return;}
  if(b.dataset.action==='message'&&messagePending){toast('Дождитесь завершения открытия диалога.');return;}
- g.seen=true;persist();render();if(b.dataset.action==='message'){compose(g);if(openConversationNow(g,$('draft').value)&&g.status==='new'){setStatus(g,'opened');$('leadStatus').value='opened';}}else details(g);
+ if(b.dataset.action==='message'){
+  const text=messageFor(g,template);g.seen=true;persist();
+  const opened=openConversationNow(g,text);
+  if(opened&&g.status==='new')setStatus(g,'opened');else render();
+  return;
+ }
+ g.seen=true;persist();render();details(g);
 };
 async function verifyGroup(g){if(g.demo)return {ok:false,reason:'Демо-сообщество нельзя открыть в VK.'};try{const raw=await api('groups.getById',{group_ids:String(g.id),fields:'name,screen_name,deactivated,can_message,has_photo,cover'});const rows=groupRows(raw,[g.id],{allowIncomplete:true});const row=rows.find(x=>x.id===g.id);if(!isUsableGroup(row)){live=live.filter(x=>x.id!==g.id);persist();render();return {ok:false,reason:'VK больше не возвращает это сообщество. Карточка удалена из выдачи.'};}Object.assign(g,{name:row.name,screenName:row.screen_name||g.screenName,canMessage:row.can_message===undefined?null:!!row.can_message,verifiedAt:Date.now(),verification:'groups.getById'});persist();render();if(g.canMessage===null)return {ok:false,reason:'VK не вернул доступность сообщений. Повторите проверку или откройте страницу сообщества.'};if(!g.canMessage)return {ok:false,reason:'Сообщество существует, но сообщения в нём закрыты.'};return {ok:true};}catch(e){return {ok:false,reason:'Не удалось подтвердить сообщество через VK: '+e.message};}}
 function messageNotice(text){const el=$('messageStatus');if(el)el.textContent=text;else toast(text);}
@@ -173,9 +184,17 @@ function openConversationNow(g,text){
  // Keep navigation in the user's click, before clipboard work or API requests.
  let popup=null;
  try{popup=window.open(dialogUrl(g,text),'_blank');if(popup)popup.opener=null;}catch{}
- messageNotice(popup?'Переход в VK запрошен. Если текст не подставился, вставьте скопированное письмо.':'Браузер не подтвердил открытие окна. Используйте прямую ссылку ниже или «Открыть в этом окне».');
- void copyDraftText();
- return !!popup;
+ const copyFn=typeof copyPreparedText==='function'?copyPreparedText:typeof copyDraftText==='function'?()=>copyDraftText():async()=>({status:'manual'});
+ const copy=Promise.resolve(copyFn(text,{
+  bridge:typeof auth!=='undefined'?auth.bridge:null,
+  clipboard:typeof navigator!=='undefined'?navigator.clipboard:null,
+  legacyCopy:value=>{try{const field=document.createElement('textarea');field.value=value;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';document.body.appendChild(field);field.focus();field.select();const ok=document.execCommand('copy');field.remove();return ok;}catch{return false;}}
+ })).catch(()=>({status:'manual'}));
+ let opened=!!popup;
+ if(!opened){try{window.location.assign(dialogUrl(g,text));opened=true;}catch{}}
+ messageNotice(opened?'Переход в VK запрошен. Сообщение скопируется автоматически.':'Браузер не подтвердил открытие окна. Используйте ссылку сообщества ниже.');
+ void copy.then(result=>messageNotice(opened?(result.status==='copied'?'Чат открыт. Сообщение скопировано — можно отправить его в VK.':'Чат открыт. Если текст не подставился, вставьте сообщение из буфера.'):'Браузер не подтвердил открытие окна. Используйте ссылку сообщества ниже.'));
+ return opened;
 }
 function setStatus(g,status){
  if(!Object.hasOwn(statuses,status))return;
@@ -185,7 +204,7 @@ function setStatus(g,status){
 }
 function compose(g){
  const text=messageFor(g,template),plain=esc(dialogUrl(g,'')),prepared=esc(dialogUrl(g,text));
- modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="secondary" id="copyDraft">Скопировать письмо</button><a class="secondary" id="openDialog" href="${plain}" target="_blank" rel="noopener noreferrer">Открыть чат по ссылке ↗</a></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать полное письмо со ссылками. Открытие чата не зависит от копирования или подключения API.</p><label for="draft">Готовое сообщение KG Design</label><textarea id="draft" rows="18">${esc(text)}</textarea><p id="messageStatus" role="status" aria-live="polite">Передаём полный текст в ссылке. Подстановка зависит от версии VK. Если поле пустое, вставьте скопированное письмо. Отправку подтвердите в VK.</p><div class="modalrow"><a class="primary" id="prepareMessage" href="${prepared}" target="_blank" rel="noopener noreferrer">Написать с готовым письмом ↗</a></div><p style="margin-top:14px"><a id="draftLink" class="link" target="_top" href="${prepared}">Открыть в этом окне</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p><label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
+ modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="secondary" id="copyDraft">Скопировать письмо</button><a class="secondary" id="openDialog" href="${plain}" target="_blank" rel="noopener noreferrer">Открыть чат по ссылке ↗</a></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать полное письмо со ссылками. Открытие чата не зависит от копирования или подключения API.</p><label for="draft">Готовое сообщение GRM Studio</label><textarea id="draft" rows="18">${esc(text)}</textarea><p id="messageStatus" role="status" aria-live="polite">Передаём полный текст в ссылке. Подстановка зависит от версии VK. Если поле пустое, вставьте скопированное письмо. Отправку подтвердите в VK.</p><div class="modalrow"><a class="primary" id="prepareMessage" href="${prepared}" target="_blank" rel="noopener noreferrer">Написать с готовым письмом ↗</a></div><p style="margin-top:14px"><a id="draftLink" class="link" target="_top" href="${prepared}">Открыть в этом окне</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p><label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
  $('copyDraft').onclick=()=>void copyDraftText();
  $('draft').oninput=()=>{const href=dialogUrl(g,$('draft').value);$('draftLink').href=href;$('prepareMessage').href=href;$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
  for(const id of ['openDialog','prepareMessage','draftLink'])$(id).onclick=()=>{
