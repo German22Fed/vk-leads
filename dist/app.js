@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.9';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.9';
-import {getBridge} from './vk-start.js?v=11.48.9';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.9';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.9';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.10';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.10';
+import {getBridge} from './vk-start.js?v=11.48.10';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.10';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.10';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.9';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.9';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.10';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.10';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -144,8 +144,8 @@ async function openDialogTarget(g,text,reserved){
  }
  if(setLocationSupported){
   try{
-   const result=await deadline(auth.bridge.send('VKWebAppSetLocation',{location:url,replace_state:false}),5000,'VK не подтвердил переход к диалогу.');
-   if(result?.result===true)return true;
+   await deadline(auth.bridge.send('VKWebAppSetLocation',{location:url,replace_state:false}),5000,'VK не подтвердил переход к диалогу.');
+   return true;
   }catch{}
  }
  if(isVkHost(window)){
@@ -155,8 +155,10 @@ async function openDialogTarget(g,text,reserved){
   const mobile=/mobile_(android|iphone|ipad)/i.test(platform)||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'')||Boolean(auth.bridge?.isWebView?.());
   // On desktop VK, replace only the current VK container. Mobile clients can
   // hand location.assign to an external browser, so they stay copy-only.
-  const desktopContainer=platform==='desktop_web'||auth.bridge?.isIframe?.()||auth.bridge?.isEmbedded?.();
-  if(!mobile&&desktopContainer){try{window.location.assign(url);return true;}catch{}}
+  // If the VK host does not expose either bridge route, navigate the current
+  // VK container on desktop. The Mini App was opened from VK, so this keeps
+  // the transition in VK and avoids creating a browser tab.
+  if(!mobile){try{window.location.assign(url);return true;}catch{}}
   return false;
  }
  const popup=window.open(url,'_blank');
@@ -401,3 +403,4 @@ let collectorSignature='';
  onShowCandidates:(period='')=>selectPeriod(period),
  onReset:()=>{live=live.map(g=>{if(g.source!=='Наблюдение Mini App')return g;const {observation,...rest}=g;return rest;});persist();render();}
 });
+

@@ -58,3 +58,4 @@ export function searchPlan(text,limit){
 export function messageFor(g,template){return template.replaceAll('{name}',g.name);}
 export function dialogUrl(g,text){if(!Number.isSafeInteger(g.id)||g.id<=0)throw Error('Некорректный ID');return `https://vk.ru/im?sel=-${g.id}&msg=${encodeURIComponent(text)}`;}
 export function normalizeGroup(g,wall){return {id:g.id,name:g.name,screenName:g.screen_name,city:g.city?.title||'Город не указан',category:g.activity||'Сообщество',members:g.members_count??null,posts:wall?.count??null,avatar:g.has_photo===undefined?null:!!g.has_photo,photo:g.photo_200||'',cover:g.cover?.enabled===undefined?null:!!g.cover.enabled,coverUrl:g.cover?.images?.at(-1)?.url||'',canMessage:g.can_message===undefined?null:!!g.can_message,description:g.description||'',latestPost:wall?.items?.filter(p=>!p.is_pinned).sort((a,b)=>b.date-a.date)[0]?.date??null,source:'VK API',wallUnavailable:!wall};}
+

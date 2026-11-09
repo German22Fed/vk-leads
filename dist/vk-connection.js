@@ -1,4 +1,4 @@
-import {isUsableGroup} from './vk-data.js?v=11.48.9';
+import {isUsableGroup} from './vk-data.js?v=11.48.10';
 
 export function errorText(error, secret = '') {
   const data = error?.error_data || error?.error || error?.data || error;
@@ -165,3 +165,4 @@ export class VkConnection {
     return this.request(method, params, this.token);
   }
 }
+

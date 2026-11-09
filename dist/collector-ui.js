@@ -1,5 +1,5 @@
-import {initBrowserCollector} from './browser-collector.js?v=11.48.9';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.48.9';
+import {initBrowserCollector} from './browser-collector.js?v=11.48.10';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.48.10';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const when = n => n ? new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК' : '—';
@@ -138,3 +138,4 @@ export function initCollector(onUpdate, seedIds, browserOptions) {
   chooseLeadPeriod('today');
   void update(); setInterval(()=>{if(!document.hidden)void update();},4000);
 }
+

@@ -1,4 +1,4 @@
-import {deadline} from './vk-connection.js?v=11.48.9';
+import {deadline} from './vk-connection.js?v=11.48.10';
 
 // Call directly from a click, not after verification or a supportsAsync request.
 export async function copyPreparedText(text,{bridge,clipboard,legacyCopy=()=>false,selectText=()=>{},timeout=4000}={}){
@@ -61,3 +61,4 @@ export async function prepareConversation({bridge,groupId,text,verify,copy,openD
   const opened=await openDialog();
   return {status:opened?'dialog':'link-required',copied:copied?.status==='copied'};
 }
+
