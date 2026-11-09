@@ -112,7 +112,7 @@ test('Mini App message action stays inside VK and uses the native route', async 
   assert.equal(context.auth.bridge, bridge);
 });
 
-test('Unsupported VK open-link uses the current VK container', async () => {
+test('Unsupported VK open-link stays in the Mini App with copy fallback', async () => {
   const controller = app.slice(app.indexOf('async function openDialogTarget'), app.indexOf('async function ensureMessageBridge'));
   let navigated = '';
   const context = vm.createContext({
@@ -125,11 +125,11 @@ test('Unsupported VK open-link uses the current VK container', async () => {
     deadline: value => value,
   });
   vm.runInContext(controller, context);
-  assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), true);
-  assert.equal(navigated, 'https://vk.ru/im?sel=-42&msg=Привет');
+  assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), false);
+  assert.equal(navigated, '');
 });
 
-test('VK external chat route uses the current container instead of SetLocation', async () => {
+test('VK unsupported route does not navigate the parent container', async () => {
   const controller = app.slice(app.indexOf('async function openDialogTarget'), app.indexOf('async function ensureMessageBridge'));
   const calls = [];
   const context = vm.createContext({
@@ -142,13 +142,11 @@ test('VK external chat route uses the current container instead of SetLocation',
     deadline: value => value,
   });
   vm.runInContext(controller, context);
-  assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), true);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], 'location.assign');
-  assert.equal(calls[0][1], 'https://vk.ru/im?sel=-42&msg=Привет');
+  assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), false);
+  assert.equal(calls.length, 0);
 });
 
-test('Desktop VK falls back to same-container navigation when no bridge route exists', async () => {
+test('Desktop VK unsupported route stays in the Mini App', async () => {
   const controller = app.slice(app.indexOf('async function openDialogTarget'), app.indexOf('async function ensureMessageBridge'));
   let navigated = '';
   const context = vm.createContext({
@@ -161,7 +159,7 @@ test('Desktop VK falls back to same-container navigation when no bridge route ex
     deadline: value => value,
   });
   vm.runInContext(controller, context);
-  assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), true);
-  assert.equal(navigated, 'https://vk.ru/im?sel=-42&msg=Привет');
+  assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), false);
+  assert.equal(navigated, '');
 });
 

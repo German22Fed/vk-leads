@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.13';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.13';
-import {getBridge} from './vk-start.js?v=11.48.13';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.13';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.13';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.14';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.14';
+import {getBridge} from './vk-start.js?v=11.48.14';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.14';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.14';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.13';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.13';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.14';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.14';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -100,8 +100,7 @@ $('cards').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)ret
  if(b.dataset.action==='hide'){g.status='hidden';persist();render();toast('Убрано из ленты. Вернуть можно в разделе «В работе».');return;}
  if(b.dataset.action==='message'&&messagePending){toast('Дождитесь завершения открытия диалога.');return;}
  if(b.dataset.action==='message'){
-  const text=messageFor(g,template);
-  void startMessageAction(g,text);
+  compose(g);
   return;
  }
  g.seen=true;persist();render();details(g);
@@ -136,16 +135,9 @@ async function openDialogTarget(g,text,reserved){
   return result?.result===true;
  }
  if(isVkHost(window)){
-  // Navigate the outer VK container, not the Mini App's hash. VKWebAppSetLocation
-  // is an app-state method and turns an external URL into `#https://...` here.
-  // Top-level navigation keeps the conversation in VK and never creates a tab.
-  try{
-   const hostWindow=window.top||window;
-   hostWindow.location.assign(url);
-   return true;
-  }catch{
-   try{window.location.assign(url);return true;}catch{}
-  }
+  // Keep the Mini App open when VK cannot provide a native route. The modal
+  // remains available with the full copied message; navigating the parent or
+  // opening a popup would close the Mini App or hand the user to a browser.
   return false;
  }
  const popup=window.open(url,'_blank');
