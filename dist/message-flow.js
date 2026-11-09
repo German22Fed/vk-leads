@@ -1,4 +1,4 @@
-import {deadline} from './vk-connection.js?v=11.36';
+import {deadline} from './vk-connection.js?v=11.48.0';
 
 // Call directly from a click, not after verification or a supportsAsync request.
 export async function copyPreparedText(text,{bridge,clipboard,legacyCopy=()=>false,selectText=()=>{},timeout=4000}={}){
@@ -40,7 +40,7 @@ export async function showPreparedMessage(bridge, groupId, text) {
   // or the host may have accepted the message without returning a response.
   const result = await deadline(bridge.send('VKWebAppShowMessageBox', {
     peer_id: -groupId, message: text,
-  }), 120000, 'VK не подтвердил результат. Проверьте диалог перед повтором, чтобы не отправить письмо дважды.');
+  }), 20000, 'VK не ответил за 20 секунд. Проверьте диалог перед повтором, чтобы не отправить письмо дважды.');
   return {status:result?.result === true ? 'confirmed' : 'cancelled'};
 }
 
@@ -61,3 +61,4 @@ export async function prepareConversation({bridge,groupId,text,verify,copy,openD
   const opened=await openDialog();
   return {status:opened?'dialog':'link-required',copied:copied?.status==='copied'};
 }
+
