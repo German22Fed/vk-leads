@@ -22,7 +22,7 @@ test('Repeated clicks share one pending verification and one native request',asy
  await context.prepareNativeMessage(g,'Text');
  assert.equal(checks,1);assert.equal(elements.prepareMessage.disabled,true);
  resolve();await first;
- assert.equal(requests,1);assert.equal(g.status,'opened');assert.equal(elements.prepareMessage.disabled,false);
+ assert.equal(requests,1);assert.equal(g.status,'new');assert.equal(elements.prepareMessage.disabled,false);
 });
 test('Closed or unverified community never reaches the native message request',async()=>{
  const {context,elements}=harness(async()=>({ok:false,reason:'Сообщения закрыты'}),async()=>assert.fail('Must not open'));
@@ -168,3 +168,4 @@ test('Desktop VK falls back to same-container navigation when no bridge route ex
   assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), true);
   assert.equal(navigated, 'https://vk.ru/im?sel=-42&msg=Привет');
 });
+

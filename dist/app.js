@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.10';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.10';
-import {getBridge} from './vk-start.js?v=11.48.10';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.10';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.10';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.11';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.11';
+import {getBridge} from './vk-start.js?v=11.48.11';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.11';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.11';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.10';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.10';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.11';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.11';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -100,7 +100,7 @@ $('cards').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)ret
  if(b.dataset.action==='hide'){g.status='hidden';persist();render();toast('Убрано из ленты. Вернуть можно в разделе «В работе».');return;}
  if(b.dataset.action==='message'&&messagePending){toast('Дождитесь завершения открытия диалога.');return;}
  if(b.dataset.action==='message'){
-  const text=messageFor(g,template);g.seen=true;persist();
+  const text=messageFor(g,template);
   void startMessageAction(g,text);
   return;
  }
@@ -206,10 +206,7 @@ async function prepareNativeMessage(g,text,{dialogOnly=false}={}){
    onProgress:phase=>show({checking:'Проверяем сообщество…',native:'Открываем окно VK с готовым письмом…',opening:'Открываем диалог с полным текстом письма…'}[phase])
   });
   if(result.status==='blocked'){show(result.reason);return result;}
-  if(result.status==='dialog'||result.status==='confirmed'){
-   if(g.status==='new')setStatus(g,'opened');
-  }
-  if(result.status==='dialog')show('Диалог открыт по ссылке с полным письмом. Если VK не заполнил строку ввода, '+(result.copied?'письмо уже скопировано — вставьте его.':'скопируйте письмо кнопкой выше.')+' Отправку подтвердите в VK.');
+  if(result.status==='dialog')show('Переход к диалогу VK запрошен. Проверьте, что открылся именно этот чат. Если VK не заполнил строку ввода, '+(result.copied?'письмо уже скопировано — вставьте его.':'скопируйте письмо кнопкой выше.')+' Отправку подтвердите в VK.');
   else if(result.status==='link-required')show(isVkHost(window)?(result.copied?'Письмо скопировано в VK. Откройте сообщество внутри VK и вставьте текст в диалог.':'Откройте сообщество внутри VK и вставьте подготовленное письмо.'):'VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
   else if(result.status==='confirmed')show('VK завершил работу с окном сообщения. Проверить отправку можно в диалоге; статус работы отмечается вручную.');
   else show('Отправка не подтверждена. Проверьте диалог VK перед повтором, чтобы не отправить письмо дважды.');
@@ -228,7 +225,7 @@ async function startMessageAction(g,text){
   return !!result;
  }
  const opened=openConversationNow(g,text);
- if(opened&&g.status==='new')setStatus(g,'opened');else render();
+ if(!opened)render();
  return opened;
 }
 function openConversationNow(g,text){

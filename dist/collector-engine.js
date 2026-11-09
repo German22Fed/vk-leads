@@ -1,5 +1,5 @@
 import { normalizeGroup } from './core.js';
-import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.48.10';
+import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.48.11';
 
 const DAY = 86400000;
 export const moscowDay = at => new Date(at + 10800000).toISOString().slice(0, 10);
