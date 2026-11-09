@@ -226,8 +226,16 @@ function compose(g){
  modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="secondary" id="copyDraft">Скопировать письмо</button><a class="secondary" id="openDialog" href="${plain}" target="_blank" rel="noopener noreferrer">Открыть чат по ссылке ↗</a></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать полное письмо со ссылками. Открытие чата не зависит от копирования или подключения API.</p><label for="draft">Готовое сообщение GRM Studio</label><textarea id="draft" rows="18">${esc(text)}</textarea><p id="messageStatus" role="status" aria-live="polite">Передаём полный текст в ссылке. Подстановка зависит от версии VK. Если поле пустое, вставьте скопированное письмо. Отправку подтвердите в VK.</p><div class="modalrow"><a class="primary" id="prepareMessage" href="${prepared}" target="_blank" rel="noopener noreferrer">Написать с готовым письмом ↗</a></div><p style="margin-top:14px"><a id="draftLink" class="link" target="_top" href="${prepared}">Открыть в этом окне</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p><label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
  $('copyDraft').onclick=()=>void copyDraftText();
  $('draft').oninput=()=>{const href=dialogUrl(g,$('draft').value);$('draftLink').href=href;$('prepareMessage').href=href;$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
- for(const id of ['openDialog','prepareMessage','draftLink'])$(id).onclick=()=>{
-  // Do not prevent the anchor's default navigation or await an API response.
+ for(const id of ['openDialog','prepareMessage','draftLink'])$(id).onclick=e=>{
+  if(typeof isVkHost==='function'&&isVkHost(window)){
+   e.preventDefault();
+   void ensureMessageBridge().then(async bridge=>{
+    if(!bridge){messageNotice('VK Bridge не подключён. Откройте Mini App внутри VK и подключите аккаунт.');return;}
+    await prepareNativeMessage(g,$('draft')?.value||text);
+   });
+   return false;
+  }
+  // Keep the public website fallback inside the user's browser.
   if(g.status==='new'){setStatus(g,'opened');$('leadStatus').value='opened';}
   messageNotice('Переход в VK запрошен. Карточка перенесена в «В работе». Отправка сообщения не подтверждена.');
   void copyDraftText();
