@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.11';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.11';
-import {getBridge} from './vk-start.js?v=11.48.11';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.11';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.11';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.12';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.12';
+import {getBridge} from './vk-start.js?v=11.48.12';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.12';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.12';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.11';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.11';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.12';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.12';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -149,16 +149,11 @@ async function openDialogTarget(g,text,reserved){
   }catch{}
  }
  if(isVkHost(window)){
-  const query=new URLSearchParams(window.location?.search||'');
-  const hash=new URLSearchParams(String(window.location?.hash||'').replace(/^#\??/,''));
-  const platform=query.get('vk_platform')||hash.get('vk_platform')||'';
-  const mobile=/mobile_(android|iphone|ipad)/i.test(platform)||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'')||Boolean(auth.bridge?.isWebView?.());
-  // On desktop VK, replace only the current VK container. Mobile clients can
-  // hand location.assign to an external browser, so they stay copy-only.
-  // If the VK host does not expose either bridge route, navigate the current
-  // VK container on desktop. The Mini App was opened from VK, so this keeps
-  // the transition in VK and avoids creating a browser tab.
-  if(!mobile){try{window.location.assign(url);return true;}catch{}}
+  // Last resort: replace the current VK container itself. This avoids a new
+  // browser window; in the VK WebView the current container handles the
+  // transition to the conversation route. The card is intentionally kept in
+  // the feed until the user marks it as contacted.
+  if(isVkHost(window)){try{window.location.assign(url);return true;}catch{}}
   return false;
  }
  const popup=window.open(url,'_blank');

@@ -112,7 +112,7 @@ test('Mini App message action stays inside VK and uses the native route', async 
   assert.equal(context.auth.bridge, bridge);
 });
 
-test('Unsupported VK open-link stays inside the Mini App', async () => {
+test('Unsupported VK open-link uses the current VK container', async () => {
   const controller = app.slice(app.indexOf('async function openDialogTarget'), app.indexOf('async function ensureMessageBridge'));
   let navigated = '';
   const context = vm.createContext({
@@ -125,8 +125,8 @@ test('Unsupported VK open-link stays inside the Mini App', async () => {
     deadline: value => value,
   });
   vm.runInContext(controller, context);
-  assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), false);
-  assert.equal(navigated, '');
+  assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), true);
+  assert.equal(navigated, 'https://vk.ru/im?sel=-42&msg=Привет');
 });
 
 test('VK SetLocation opens the dialog in the current VK container', async () => {
