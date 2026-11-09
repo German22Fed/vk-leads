@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.12';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.12';
-import {getBridge} from './vk-start.js?v=11.48.12';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.12';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.12';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.13';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.13';
+import {getBridge} from './vk-start.js?v=11.48.13';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.13';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.13';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.12';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.12';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.13';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.13';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -135,25 +135,17 @@ async function openDialogTarget(g,text,reserved){
   const result=await deadline(auth.bridge.send('VKWebAppOpenLink',{link:url}),5000,'VK не подтвердил открытие. Проверьте диалог перед повтором.');
   return result?.result===true;
  }
- // Some VK clients expose SetLocation even though OpenLink is absent. Ask the
- // host to navigate its own container first; this never creates a new browser
- // window and keeps the transition under VK's control.
- let setLocationSupported=false;
- if(auth.bridge?.supportsAsync){
-  try{setLocationSupported=await deadline(auth.bridge.supportsAsync('VKWebAppSetLocation'),3000,'Нет ответа VK.');}catch{}
- }
- if(setLocationSupported){
-  try{
-   await deadline(auth.bridge.send('VKWebAppSetLocation',{location:url,replace_state:false}),5000,'VK не подтвердил переход к диалогу.');
-   return true;
-  }catch{}
- }
  if(isVkHost(window)){
-  // Last resort: replace the current VK container itself. This avoids a new
-  // browser window; in the VK WebView the current container handles the
-  // transition to the conversation route. The card is intentionally kept in
-  // the feed until the user marks it as contacted.
-  if(isVkHost(window)){try{window.location.assign(url);return true;}catch{}}
+  // Navigate the outer VK container, not the Mini App's hash. VKWebAppSetLocation
+  // is an app-state method and turns an external URL into `#https://...` here.
+  // Top-level navigation keeps the conversation in VK and never creates a tab.
+  try{
+   const hostWindow=window.top||window;
+   hostWindow.location.assign(url);
+   return true;
+  }catch{
+   try{window.location.assign(url);return true;}catch{}
+  }
   return false;
  }
  const popup=window.open(url,'_blank');

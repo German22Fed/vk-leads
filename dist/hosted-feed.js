@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.48.12';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.48.12';
+import {isLeadFitGroup} from './vk-data.js?v=11.48.13';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.48.13';
 export function syncPeriodButtons(period,root=document){
   root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
     const active=(b.dataset.cloudPeriod??b.dataset.period)===period;

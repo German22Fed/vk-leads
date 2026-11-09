@@ -129,16 +129,13 @@ test('Unsupported VK open-link uses the current VK container', async () => {
   assert.equal(navigated, 'https://vk.ru/im?sel=-42&msg=Привет');
 });
 
-test('VK SetLocation opens the dialog in the current VK container', async () => {
+test('VK external chat route uses the current container instead of SetLocation', async () => {
   const controller = app.slice(app.indexOf('async function openDialogTarget'), app.indexOf('async function ensureMessageBridge'));
   const calls = [];
   const context = vm.createContext({
-    auth: {bridge: {
-      supportsAsync: async method => method === 'VKWebAppSetLocation',
-      send: async (method, payload) => { calls.push([method, payload]); return {result:true}; },
-    }},
+    auth: {bridge: {supportsAsync: async () => false, send: async (method, payload) => { calls.push([method, payload]); return {result:true}; }}},
     isVkHost: () => true,
-    window: {location: {search:'', hash:''}},
+    window: {location: {assign: url => calls.push(['location.assign', url]), search:'', hash:''}, top:null},
     navigator: {userAgent:'Mozilla/5.0'},
     URLSearchParams,
     dialogUrl: () => 'https://vk.ru/im?sel=-42&msg=Привет',
@@ -147,9 +144,8 @@ test('VK SetLocation opens the dialog in the current VK container', async () => 
   vm.runInContext(controller, context);
   assert.equal(await context.openDialogTarget({id:42}, 'Привет', null), true);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], 'VKWebAppSetLocation');
-  assert.equal(calls[0][1].location, 'https://vk.ru/im?sel=-42&msg=Привет');
-  assert.equal(calls[0][1].replace_state, false);
+  assert.equal(calls[0][0], 'location.assign');
+  assert.equal(calls[0][1], 'https://vk.ru/im?sel=-42&msg=Привет');
 });
 
 test('Desktop VK falls back to same-container navigation when no bridge route exists', async () => {
