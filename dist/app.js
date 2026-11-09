@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.5';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.5';
-import {getBridge} from './vk-start.js?v=11.48.5';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.5';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.5';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.6';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.6';
+import {getBridge} from './vk-start.js?v=11.48.6';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.6';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.6';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.5';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.5';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.6';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.6';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -135,12 +135,11 @@ async function openDialogTarget(g,text,reserved){
   const result=await deadline(auth.bridge.send('VKWebAppOpenLink',{link:url}),5000,'VK не подтвердил открытие. Проверьте диалог перед повтором.');
   return result?.result===true;
  }
- // VK Bridge has no universal native chat-opening method. Preserve the
- // previous working fallback for VK: navigate to the VK conversation URL
- // with the prepared text instead of stopping at an unsupported-client notice.
- if(isVkHost(window)){
-  try{window.location.assign(url);return true;}catch{return false;}
- }
+ // VK Bridge has no universal native chat-opening method. Do not replace the
+ // Mini App frame or call window.open inside VK: that is the browser jump the
+ // user sees. Keep the text copied and let the in-app status explain the next
+ // safe manual step.
+ if(isVkHost(window))return false;
  const popup=window.open(url,'_blank');
  if(popup)popup.opener=null;
  return !!popup;
@@ -190,7 +189,7 @@ async function prepareNativeMessage(g,text,{dialogOnly=false}={}){
    if(g.status==='new')setStatus(g,'opened');
   }
   if(result.status==='dialog')show('Диалог открыт по ссылке с полным письмом. Если VK не заполнил строку ввода, '+(result.copied?'письмо уже скопировано — вставьте его.':'скопируйте письмо кнопкой выше.')+' Отправку подтвердите в VK.');
-  else if(result.status==='link-required')show('VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
+  else if(result.status==='link-required')show(isVkHost(window)?(result.copied?'Письмо скопировано в VK. Откройте сообщество внутри VK и вставьте текст в диалог.':'Откройте сообщество внутри VK и вставьте подготовленное письмо.'):'VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
   else if(result.status==='confirmed')show('VK завершил работу с окном сообщения. Проверить отправку можно в диалоге; статус работы отмечается вручную.');
   else show('Отправка не подтверждена. Проверьте диалог VK перед повтором, чтобы не отправить письмо дважды.');
   return result;
