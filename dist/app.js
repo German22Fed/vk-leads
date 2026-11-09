@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.2';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.2';
-import {getBridge} from './vk-start.js?v=11.48.2';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.2';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.2';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.3';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.3';
+import {getBridge} from './vk-start.js?v=11.48.3';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.3';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.3';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.2';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.2';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.3';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.3';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -126,6 +126,11 @@ function reserveDialogWindow(){
 }
 async function openDialogTarget(g,text,reserved){
  const url=dialogUrl(g,text);
+ // VK Bridge does not expose a supported native "open conversation" method.
+ // Never replace the Mini App frame or call window.open from inside VK: both
+ // routes hand the URL to the external browser and make the user leave the app.
+ // The caller keeps the full text copied and shows a clear in-app explanation.
+ if(isVkHost(window))return false;
  if(reserved&&!reserved.closed){reserved.location.replace(url);reserved.focus();return true;}
  let supported=false;
  if(auth.bridge?.supportsAsync){
@@ -134,12 +139,6 @@ async function openDialogTarget(g,text,reserved){
  if(supported){
   const result=await deadline(auth.bridge.send('VKWebAppOpenLink',{link:url}),5000,'VK не подтвердил открытие. Проверьте диалог перед повтором.');
   return result?.result===true;
- }
- // When the VK client does not expose a native open-link method, navigate the
- // current Mini App frame to the VK conversation. This keeps the user inside
- // the VK client and avoids target=_blank opening Safari/Chrome.
- if(isVkHost(window)){
-  try{window.location.assign(url);return true;}catch{return false;}
  }
  const popup=window.open(url,'_blank');
  if(popup)popup.opener=null;
@@ -190,7 +189,7 @@ async function prepareNativeMessage(g,text,{dialogOnly=false}={}){
    if(g.status==='new')setStatus(g,'opened');
   }
   if(result.status==='dialog')show('Диалог открыт по ссылке с полным письмом. Если VK не заполнил строку ввода, '+(result.copied?'письмо уже скопировано — вставьте его.':'скопируйте письмо кнопкой выше.')+' Отправку подтвердите в VK.');
-  else if(result.status==='link-required')show('VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
+  else if(result.status==='link-required')show(isVkHost(window)?'VK не предоставляет Mini App нативное открытие диалога внутри клиента. '+(result.copied?'Письмо скопировано — откройте сообщество в VK вручную и вставьте его.':'Скопируйте письмо кнопкой выше, затем откройте сообщество в VK вручную.'):'VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
   else if(result.status==='confirmed')show('VK завершил работу с окном сообщения. Проверить отправку можно в диалоге; статус работы отмечается вручную.');
   else show('Отправка не подтверждена. Проверьте диалог VK перед повтором, чтобы не отправить письмо дважды.');
   return result;
@@ -234,10 +233,10 @@ function setStatus(g,status){
  Object.assign(current,patch);Object.assign(g,patch);persist();render();
 }
 function compose(g){
- const text=messageFor(g,template),plain=esc(dialogUrl(g,'')),prepared=esc(dialogUrl(g,text));
+ const text=messageFor(g,template),insideVk=typeof isVkHost==='function'&&isVkHost(window),plain=insideVk?'#':esc(dialogUrl(g,'')),prepared=insideVk?'#':esc(dialogUrl(g,text));
  modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="secondary" id="copyDraft">Скопировать письмо</button><a class="secondary" id="openDialog" href="${plain}" target="_blank" rel="noopener noreferrer">Открыть чат по ссылке ↗</a></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать полное письмо со ссылками. Открытие чата не зависит от копирования или подключения API.</p><label for="draft">Готовое сообщение GRM Studio</label><textarea id="draft" rows="18">${esc(text)}</textarea><p id="messageStatus" role="status" aria-live="polite">Передаём полный текст в ссылке. Подстановка зависит от версии VK. Если поле пустое, вставьте скопированное письмо. Отправку подтвердите в VK.</p><div class="modalrow"><a class="primary" id="prepareMessage" href="${prepared}" target="_blank" rel="noopener noreferrer">Написать с готовым письмом ↗</a></div><p style="margin-top:14px"><a id="draftLink" class="link" target="_top" href="${prepared}">Открыть в этом окне</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p><label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
  $('copyDraft').onclick=()=>void copyDraftText();
- $('draft').oninput=()=>{const href=dialogUrl(g,$('draft').value);$('draftLink').href=href;$('prepareMessage').href=href;$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
+ $('draft').oninput=()=>{const href=insideVk?'#':dialogUrl(g,$('draft').value);$('draftLink').href=href;$('prepareMessage').href=href;$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
  for(const id of ['openDialog','prepareMessage','draftLink'])$(id).onclick=e=>{
   if(typeof isVkHost==='function'&&isVkHost(window)){
    e.preventDefault();
