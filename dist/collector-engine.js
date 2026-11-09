@@ -1,5 +1,5 @@
 import { normalizeGroup } from './core.js';
-import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.39';
+import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.48.1';
 
 const DAY = 86400000;
 export const moscowDay = at => new Date(at + 10800000).toISOString().slice(0, 10);
@@ -206,3 +206,4 @@ export class Collector {
       evidence:{confirmedCreationDates:0,candidatesToday:groups.filter(g=>g.available&&g.observation.verdict==='candidate_today').length,older:groups.filter(g=>g.observation.verdict==='older').length,controlContradictions:controls.filter(c=>c.result==='contradiction').length}};
   }
 }
+
