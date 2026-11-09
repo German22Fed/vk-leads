@@ -177,7 +177,7 @@ async function prepareNativeMessage(g,text,{dialogOnly=false}={}){
  let reserved=null,navigated=false;
  try{
   // Start clipboard access and reserve the desktop tab within the click gesture.
-  const copy=Promise.resolve(copyDraftText()).catch(()=>({status:'manual'}));
+  const copy=Promise.resolve(field?copyDraftText():copyPreparedText(text,{bridge:auth.bridge,clipboard:navigator.clipboard})).catch(()=>({status:'manual'}));
   reserved=reserveDialogWindow();
   const result=await prepareConversation({
    bridge:dialogOnly?null:auth.bridge,groupId:g.id,text,verify:()=>verifyGroup(g),copy,
