@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline} from './vk-connection.js?v=11.46.0';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.46.0';
-import {getBridge} from './vk-start.js?v=11.46.0';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.46.0';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.46.0';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.47.0';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.47.0';
+import {getBridge} from './vk-start.js?v=11.47.0';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.47.0';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.47.0';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.46.0';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.46.0';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.47.0';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.47.0';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -63,7 +63,7 @@ function render(){
  $('emptyText').textContent=hostedFeed&&view==='discover'?'Нет непросмотренных кандидатов под выбранные условия. Обработанные находятся в «В работе». Снимите фильтр оформления или выберите другой период. Обновление загружает последнюю проверку сборщика; новые карточки появляются после серверного сбора.':freshFilter&&view==='discover'?'Нажмите кнопку периода, чтобы обновить подбор. Повторы скрываются.':snapshotMode?'Измените направление поиска или повторите проверку VK.':appeared?'Нажмите «Найти подходящие сообщества» и оставьте Mini App открытым для наблюдения VK.':created&&mode==='live'?'Точная дата создания не подтверждена VK.':'Измените период или направление поиска.';
  $('totalStat').textContent=all.length;$('newStat').textContent=all.filter(g=>!g.seen&&g.status!=='hidden').length;$('newChip').textContent=$('newStat').textContent;$('matchStat').textContent=all.filter(g=>g.posts>=2&&g.posts<=3&&g.avatar===true&&g.cover===true&&g.status!=='hidden').length;$('workStat').textContent=all.filter(g=>!['new','hidden'].includes(g.status)).length;$('savedCount').textContent=all.filter(g=>g.saved).length;$('listCount').textContent=list.length;
  $('demoBanner').hidden=mode!=='demo';renderConnection();
- $('cards').innerHTML=list.map(g=>{const s=score(g);const pic=safeImage(g.photo),cover=safeImage(g.coverUrl);return `<article class="card" data-id="${g.id}"><div class="cover" style="background:${g.demo?g.bg:'#e8edf5'};color:${g.demo?g.ink:'#7d8ea8'}">${cover?`<img src="${cover}" alt="Обложка сообщества" loading="lazy" referrerpolicy="no-referrer">`:`<div class="coverart"><div>${esc(g.art||'сообщество')}<span>${esc(g.artSub||'ВКонтакте')}</span></div></div>`}${created&&creationTimestamp(g,mode==='demo')!==null?'<span class="newbadge">◷ ДАТА СОЗДАНИЯ'+(g.demo?' · ДЕМО':'')+'</span>':!g.seen?'<span class="newbadge">● НОВОЕ ДЛЯ ВАС</span>':''}<button class="bookmark ${g.saved?'selected':''}" data-action="save" aria-label="${g.saved?'Убрать из сохранённых':'Сохранить'}">${g.saved?'★':'☆'}</button></div><div class="cardbody"><div class="identity"><div class="avatar" ${g.demo?`style="background:${g.bg};color:${g.ink}"`:''}>${pic?`<img src="${pic}" alt="" loading="lazy" referrerpolicy="no-referrer">`:esc(g.monogram||g.name[0])}</div><div><h3 title="${esc(g.name)}">${esc(g.name)}</h3><p>${esc(g.category)} · ${esc(g.city)}</p></div></div><div class="numbers"><span>♧ <b>${g.members??'—'}</b> подписчиков</span><span>▤ <b>${g.posts??'—'}</b> поста / постов</span></div><div class="tags"><span class="tag good">✓ Данные VK проверены · ${date(g.verifiedAt)}</span>${g.observation?.appearance?.kind==='frontier_candidate'?'<span class="tag">Кандидат по росту ID · создание не подтверждено</span>':''}<span class="tag ${g.avatar?'good':''}">${g.avatar===null?'?':g.avatar?'✓':'−'} Аватарка</span><span class="tag ${g.cover?'good':''}">${g.cover===null?'?':g.cover?'✓':'−'} Обложка</span><span class="tag ${g.canMessage?'good':''}">${g.canMessage===null?'?':g.canMessage?'✓':'−'} Сообщения</span></div><div class="priority"><span>✧</span>${s.value>=80?'Высокий приоритет':s.value>=50?'Есть потенциал':'Нужна оценка'}<b>${s.value} / 100</b></div><p class="reason">${esc(g.posts>=2&&g.posts<=3?'Мало публикаций — повод предложить единый стиль':g.wallUnavailable?'Стена недоступна: число постов не определено':'Проверьте, что можно улучшить в оформлении')}</p><div class="cardactions"><button class="messagebtn" data-action="message" ${g.demo||g.canMessage===false?'disabled':''}>↗ &nbsp; ${g.canMessage===false?'Сообщения закрыты':'Открыть чат с предложением'}</button><button class="details" data-action="sent" title="Отметить отправку вручную и убрать из свежей ленты">Уже написал</button><button class="details" data-action="details">Подробнее</button></div><div class="cardfoot"><span>${appeared?'Переход ID: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):(created?'Создано':'Найдено')+' '+date(created?creationTimestamp(g,mode==='demo'):g.firstSeen)} · ${esc(statuses[g.status]||g.status)}</span><button data-action="hide">Не подходит</button></div></div></article>`;}).join('');$('empty').hidden=list.length>0;restoreViewport(viewport);
+ $('cards').innerHTML=list.map(g=>{const s=score(g);const pic=safeImage(g.photo),cover=safeImage(g.coverUrl);return `<article class="card" data-id="${g.id}"><div class="cover" style="background:${g.demo?g.bg:'#e8edf5'};color:${g.demo?g.ink:'#7d8ea8'}">${cover?`<img src="${cover}" alt="Обложка сообщества" loading="lazy" referrerpolicy="no-referrer">`:`<div class="coverart"><div>${esc(g.art||'сообщество')}<span>${esc(g.artSub||'ВКонтакте')}</span></div></div>`}${created&&creationTimestamp(g,mode==='demo')!==null?'<span class="newbadge">◷ ДАТА СОЗДАНИЯ'+(g.demo?' · ДЕМО':'')+'</span>':!g.seen?'<span class="newbadge">● НОВОЕ ДЛЯ ВАС</span>':''}<button class="bookmark ${g.saved?'selected':''}" data-action="save" aria-label="${g.saved?'Убрать из сохранённых':'Сохранить'}">${g.saved?'★':'☆'}</button></div><div class="cardbody"><div class="identity"><div class="avatar" ${g.demo?`style="background:${g.bg};color:${g.ink}"`:''}>${pic?`<img src="${pic}" alt="" loading="lazy" referrerpolicy="no-referrer">`:esc(g.monogram||g.name[0])}</div><div><h3 title="${esc(g.name)}">${esc(g.name)}</h3><p>${esc(g.category)} · ${esc(g.city)}</p></div></div><div class="numbers"><span>♧ <b>${g.members??'—'}</b> подписчиков</span><span>▤ <b>${g.posts??'—'}</b> поста / постов</span></div><div class="tags"><span class="tag good">✓ Данные VK проверены · ${date(g.verifiedAt)}</span>${g.observation?.appearance?.kind==='frontier_candidate'?'<span class="tag">Кандидат по росту ID · создание не подтверждено</span>':''}<span class="tag ${g.avatar?'good':''}">${g.avatar===null?'?':g.avatar?'✓':'−'} Аватарка</span><span class="tag ${g.cover?'good':''}">${g.cover===null?'?':g.cover?'✓':'−'} Обложка</span><span class="tag ${g.canMessage?'good':''}">${g.canMessage===null?'?':g.canMessage?'✓':'−'} Сообщения</span></div><div class="priority"><span>✧</span>${s.value>=80?'Высокий приоритет':s.value>=50?'Есть потенциал':'Нужна оценка'}<b>${s.value} / 100</b></div><p class="reason">${esc(g.posts>=2&&g.posts<=3?'Мало публикаций — повод предложить единый стиль':g.wallUnavailable?'Стена недоступна: число постов не определено':'Проверьте, что можно улучшить в оформлении')}</p><div class="cardactions"><button class="messagebtn" data-action="message" ${g.demo||g.canMessage===false?'disabled':''}>↗ &nbsp; ${g.canMessage===false?'Сообщения закрыты':'Написать в VK'}</button><button class="details" data-action="sent" title="Отметить отправку вручную и убрать из свежей ленты">Уже написал</button><button class="details" data-action="details">Подробнее</button></div><div class="cardfoot"><span>${appeared?'Переход ID: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):(created?'Создано':'Найдено')+' '+date(created?creationTimestamp(g,mode==='demo'):g.firstSeen)} · ${esc(statuses[g.status]||g.status)}</span><button data-action="hide">Не подходит</button></div></div></article>`;}).join('');$('empty').hidden=list.length>0;restoreViewport(viewport);
 }
 function modal(title,html){$('modalTitle').textContent=title;$('modalBody').innerHTML=html;if(!$('modal').open)$('modal').showModal();}
 function deleteLocalData(){
@@ -101,8 +101,7 @@ $('cards').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)ret
  if(b.dataset.action==='message'&&messagePending){toast('Дождитесь завершения открытия диалога.');return;}
  if(b.dataset.action==='message'){
   const text=messageFor(g,template);g.seen=true;persist();
-  const opened=openConversationNow(g,text);
-  if(opened&&g.status==='new')setStatus(g,'opened');else render();
+  void startMessageAction(g,text);
   return;
  }
  g.seen=true;persist();render();details(g);
@@ -127,9 +126,17 @@ async function openDialogTarget(g,text,reserved){
   const result=await deadline(auth.bridge.send('VKWebAppOpenLink',{link:url}),5000,'VK не подтвердил открытие. Проверьте диалог перед повтором.');
   return result?.result===true;
  }
+ // A Mini App must not escape to Safari/Chrome when VK cannot handle the
+ // native route. Keep the user in VK and show the in-app fallback message.
+ if(isVkHost(window))return false;
  const popup=window.open(url,'_blank');
  if(popup)popup.opener=null;
  return !!popup;
+}
+async function ensureMessageBridge(){
+ if(auth.bridge?.send)return auth.bridge;
+ if(!isVkHost(window))return null;
+ try{auth.bridge=await getBridge();return auth.bridge;}catch{return null;}
 }
 async function openVerifiedDialog(g,text){return prepareNativeMessage(g,text,{dialogOnly:true});}
 async function copyDraftText(){
@@ -166,19 +173,31 @@ async function prepareNativeMessage(g,text,{dialogOnly=false}={}){
    openDialog:async()=>{navigated=await openDialogTarget(g,text,reserved);return navigated;},
    onProgress:phase=>show({checking:'Проверяем сообщество…',native:'Открываем окно VK с готовым письмом…',opening:'Открываем диалог с полным текстом письма…'}[phase])
   });
-  if(result.status==='blocked'){show(result.reason);return;}
+  if(result.status==='blocked'){show(result.reason);return result;}
   if(result.status==='dialog'||result.status==='confirmed'){
    if(g.status==='new')setStatus(g,'opened');
   }
   if(result.status==='dialog')show('Диалог открыт по ссылке с полным письмом. Если VK не заполнил строку ввода, '+(result.copied?'письмо уже скопировано — вставьте его.':'скопируйте письмо кнопкой выше.')+' Отправку подтвердите в VK.');
   else if(result.status==='link-required')show('VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
   else if(result.status==='confirmed')show('VK завершил работу с окном сообщения. Проверить отправку можно в диалоге; статус работы отмечается вручную.');
-  else show('Отправка не подтверждена. Письмо сохранено. Повторного открытия или отправки не было.');
+  else show('Отправка не подтверждена. Проверьте диалог VK перед повтором, чтобы не отправить письмо дважды.');
+  return result;
  }catch(e){show('VK не подтвердил результат: '+errorText(e,auth.token));}
  finally{
   if(reserved&&!navigated&&!reserved.closed)reserved.close();
   messagePending=false;if(button?.isConnected)button.disabled=!!g.demo;if(fallback?.isConnected)fallback.disabled=!!g.demo;if(field?.isConnected)field.readOnly=false;
  }
+}
+async function startMessageAction(g,text){
+ if(isVkHost(window)){
+  const bridge=await ensureMessageBridge();
+  if(!bridge){toast('VK Bridge не подключён. Откройте Mini App внутри VK и подключите аккаунт.');render();return false;}
+  const result=await prepareNativeMessage(g,text);
+  return !!result;
+ }
+ const opened=openConversationNow(g,text);
+ if(opened&&g.status==='new')setStatus(g,'opened');else render();
+ return opened;
 }
 function openConversationNow(g,text){
  // Keep navigation in the user's click, before clipboard work or API requests.
