@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.8';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.8';
-import {getBridge} from './vk-start.js?v=11.48.8';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.8';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.8';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.9';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.9';
+import {getBridge} from './vk-start.js?v=11.48.9';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.9';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.9';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.8';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.8';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.9';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.9';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -135,11 +135,30 @@ async function openDialogTarget(g,text,reserved){
   const result=await deadline(auth.bridge.send('VKWebAppOpenLink',{link:url}),5000,'VK не подтвердил открытие. Проверьте диалог перед повтором.');
   return result?.result===true;
  }
- // VK Bridge has no universal native chat-opening method. Do not replace the
- // Mini App frame or call window.open inside VK: that is the browser jump the
- // user sees. Keep the text copied and let the in-app status explain the next
- // safe manual step.
- if(isVkHost(window))return false;
+ // Some VK clients expose SetLocation even though OpenLink is absent. Ask the
+ // host to navigate its own container first; this never creates a new browser
+ // window and keeps the transition under VK's control.
+ let setLocationSupported=false;
+ if(auth.bridge?.supportsAsync){
+  try{setLocationSupported=await deadline(auth.bridge.supportsAsync('VKWebAppSetLocation'),3000,'Нет ответа VK.');}catch{}
+ }
+ if(setLocationSupported){
+  try{
+   const result=await deadline(auth.bridge.send('VKWebAppSetLocation',{location:url,replace_state:false}),5000,'VK не подтвердил переход к диалогу.');
+   if(result?.result===true)return true;
+  }catch{}
+ }
+ if(isVkHost(window)){
+  const query=new URLSearchParams(window.location?.search||'');
+  const hash=new URLSearchParams(String(window.location?.hash||'').replace(/^#\??/,''));
+  const platform=query.get('vk_platform')||hash.get('vk_platform')||'';
+  const mobile=/mobile_(android|iphone|ipad)/i.test(platform)||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'')||Boolean(auth.bridge?.isWebView?.());
+  // On desktop VK, replace only the current VK container. Mobile clients can
+  // hand location.assign to an external browser, so they stay copy-only.
+  const desktopContainer=platform==='desktop_web'||auth.bridge?.isIframe?.()||auth.bridge?.isEmbedded?.();
+  if(!mobile&&desktopContainer){try{window.location.assign(url);return true;}catch{}}
+  return false;
+ }
  const popup=window.open(url,'_blank');
  if(popup)popup.opener=null;
  return !!popup;

@@ -1,8 +1,8 @@
-import {Collector, initialState} from './collector-engine.js?v=11.48.8';
+import {Collector, initialState} from './collector-engine.js?v=11.48.9';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.48.8';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.48.8';
-import {refreshObservation} from './period-search.js?v=11.48.8';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.48.9';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.48.9';
+import {refreshObservation} from './period-search.js?v=11.48.9';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
 export const AUTO_QUERIES=['ресницы','брови','маникюр','салон красоты','парикмахерская','психолог','психология','мебель на заказ','кухни на заказ','диваны','ремонт квартир','магазин','клиника','стоматология','кафе','фотограф','студия'];
