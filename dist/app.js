@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.47.1';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.47.1';
-import {getBridge} from './vk-start.js?v=11.47.1';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.47.1';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.47.1';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.0';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.0';
+import {getBridge} from './vk-start.js?v=11.48.0';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.0';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.0';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.47.1';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.47.1';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.0';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.0';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -28,7 +28,7 @@ function restoreViewport(viewport){
  apply();if(typeof requestAnimationFrame==='function')requestAnimationFrame(apply);
 }
 const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?
-  live.filter(g=>g.collectorFeed===true&&g.available===true&&
+  live.filter(g=>g.collectorFeed===true&&g.available===true&&isLeadFitGroup(g)&&
     Number.isFinite(g.verifiedAt)&&Number.isFinite(g.observation?.wallCheckedAt)&&
     !g.observation.wallError&&(!hostedSnapshotUpdatedAt||Date.now()-hostedSnapshotUpdatedAt<=6*3600000)):
   live;
@@ -106,9 +106,18 @@ $('cards').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)ret
  }
  g.seen=true;persist();render();details(g);
 };
-async function verifyGroup(g){if(g.demo)return {ok:false,reason:'Демо-сообщество нельзя открыть в VK.'};try{const raw=await api('groups.getById',{group_ids:String(g.id),fields:'name,screen_name,deactivated,can_message,has_photo,cover'});const rows=groupRows(raw,[g.id],{allowIncomplete:true});const row=rows.find(x=>x.id===g.id);if(!isUsableGroup(row)){live=live.filter(x=>x.id!==g.id);persist();render();return {ok:false,reason:'VK больше не возвращает это сообщество. Карточка удалена из выдачи.'};}Object.assign(g,{name:row.name,screenName:row.screen_name||g.screenName,canMessage:row.can_message===undefined?null:!!row.can_message,verifiedAt:Date.now(),verification:'groups.getById'});persist();render();if(g.canMessage===null)return {ok:false,reason:'VK не вернул доступность сообщений. Повторите проверку или откройте страницу сообщества.'};if(!g.canMessage)return {ok:false,reason:'Сообщество существует, но сообщения в нём закрыты.'};return {ok:true};}catch(e){return {ok:false,reason:'Не удалось подтвердить сообщество через VK: '+e.message};}}
+async function verifyGroup(g){
+ if(g.demo)return {ok:false,reason:'Демо-сообщество нельзя открыть в VK.'};
+ // Hosted collector cards already carry a recent groups.getById + wall.get
+ // verification. Requiring a second user token here made the public Mini App
+ // stall even though the card was already verified by the server collector.
+ if(g.collectorFeed===true&&g.available===true&&Number.isFinite(g.verifiedAt)&&
+    Number.isFinite(g.observation?.wallCheckedAt)&&!g.observation?.wallError&&g.canMessage!==false)
+   return {ok:true};
+ try{const raw=await api('groups.getById',{group_ids:String(g.id),fields:'name,screen_name,deactivated,can_message,has_photo,cover'});const rows=groupRows(raw,[g.id],{allowIncomplete:true});const row=rows.find(x=>x.id===g.id);if(!isUsableGroup(row)){live=live.filter(x=>x.id!==g.id);persist();render();return {ok:false,reason:'VK больше не возвращает это сообщество. Карточка удалена из выдачи.'};}Object.assign(g,{name:row.name,screenName:row.screen_name||g.screenName,canMessage:row.can_message===undefined?null:!!row.can_message,verifiedAt:Date.now(),verification:'groups.getById'});persist();render();if(g.canMessage===null)return {ok:false,reason:'VK не вернул доступность сообщений. Повторите проверку или откройте страницу сообщества.'};if(!g.canMessage)return {ok:false,reason:'Сообщество существует, но сообщения в нём закрыты.'};return {ok:true};}catch(e){return {ok:false,reason:'Не удалось подтвердить сообщество через VK: '+e.message};}}
 function messageNotice(text){const el=$('messageStatus');if(el)el.textContent=text;else toast(text);}
 function reserveDialogWindow(){
+ if(isVkHost(window))return null;
  const mobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||auth.bridge?.isWebView?.();
  if(mobile)return null;
  const popup=window.open('about:blank','_blank');
@@ -126,9 +135,12 @@ async function openDialogTarget(g,text,reserved){
   const result=await deadline(auth.bridge.send('VKWebAppOpenLink',{link:url}),5000,'VK не подтвердил открытие. Проверьте диалог перед повтором.');
   return result?.result===true;
  }
- // A Mini App must not escape to Safari/Chrome when VK cannot handle the
- // native route. Keep the user in VK and show the in-app fallback message.
- if(isVkHost(window))return false;
+ // When the VK client does not expose a native open-link method, navigate the
+ // current Mini App frame to the VK conversation. This keeps the user inside
+ // the VK client and avoids target=_blank opening Safari/Chrome.
+ if(isVkHost(window)){
+  try{window.location.assign(url);return true;}catch{return false;}
+ }
  const popup=window.open(url,'_blank');
  if(popup)popup.opener=null;
  return !!popup;
