@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.14';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.14';
-import {getBridge} from './vk-start.js?v=11.48.14';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.14';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.14';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.15';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.15';
+import {getBridge} from './vk-start.js?v=11.48.15';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.15';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.15';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.14';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.14';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.15';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.15';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -230,24 +230,11 @@ function setStatus(g,status){
  Object.assign(current,patch);Object.assign(g,patch);persist();render();
 }
 function compose(g){
- const text=messageFor(g,template),insideVk=typeof isVkHost==='function'&&isVkHost(window),plain=insideVk?'#':esc(dialogUrl(g,'')),prepared=insideVk?'#':esc(dialogUrl(g,text));
- modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="secondary" id="copyDraft">Скопировать письмо</button><a class="secondary" id="openDialog" href="${plain}" target="_blank" rel="noopener noreferrer">Открыть чат по ссылке ↗</a></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать полное письмо со ссылками. Открытие чата не зависит от копирования или подключения API.</p><label for="draft">Готовое сообщение GRM Studio</label><textarea id="draft" rows="18">${esc(text)}</textarea><p id="messageStatus" role="status" aria-live="polite">Передаём полный текст в ссылке. Подстановка зависит от версии VK. Если поле пустое, вставьте скопированное письмо. Отправку подтвердите в VK.</p><div class="modalrow"><a class="primary" id="prepareMessage" href="${prepared}" target="_blank" rel="noopener noreferrer">Написать с готовым письмом ↗</a></div><p style="margin-top:14px"><a id="draftLink" class="link" target="_top" href="${prepared}">Открыть в этом окне</a> · <a class="link" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p><label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
+ const text=messageFor(g,template),insideVk=typeof isVkHost==='function'&&isVkHost(window),plain=dialogUrl(g,''),prepared=dialogUrl(g,text),linkTarget=insideVk?'_top':'_blank';
+ modal('Готовое письмо в VK',`<p><b>${esc(g.name)}</b></p><div class="modalrow"><button class="secondary" id="copyDraft">Скопировать письмо</button><a class="secondary" id="openDialog" href="${esc(plain)}" target="${linkTarget}" rel="noopener noreferrer">Открыть чат по ссылке ↗</a></div><p id="copyStatus" role="status" aria-live="polite">Можно скопировать полное письмо со ссылками. Открытие чата не зависит от копирования или подключения API.</p><label for="draft">Готовое сообщение GRM Studio</label><textarea id="draft" rows="18">${esc(text)}</textarea><p id="messageStatus" role="status" aria-live="polite">Ссылка ведёт прямо в диалог VK. Если VK не заполнит строку ввода, вставьте скопированное письмо вручную.</p><div class="modalrow"><a class="primary" id="prepareMessage" href="${esc(prepared)}" target="${linkTarget}" rel="noopener noreferrer">Написать с готовым письмом ↗</a></div><p style="margin-top:14px"><a id="draftLink" class="link" target="${linkTarget}" href="${esc(prepared)}">Открыть в этом окне</a> · <a class="link" target="${linkTarget}" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Сообщество ↗</a></p><label for="leadStatus">Статус работы (отмечается вручную)</label><select id="leadStatus" class="statusselect">${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${g.status===k?'selected':''}>${v}</option>`).join('')}</select>`);
  $('copyDraft').onclick=()=>void copyDraftText();
- $('draft').oninput=()=>{const href=insideVk?'#':dialogUrl(g,$('draft').value);$('draftLink').href=href;$('prepareMessage').href=href;$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
- for(const id of ['openDialog','prepareMessage','draftLink'])$(id).onclick=e=>{
-  if(typeof isVkHost==='function'&&isVkHost(window)){
-   e.preventDefault();
-   void ensureMessageBridge().then(async bridge=>{
-    if(!bridge){messageNotice('VK Bridge не подключён. Откройте Mini App внутри VK и подключите аккаунт.');return;}
-    await prepareNativeMessage(g,$('draft')?.value||text);
-   });
-   return false;
-  }
-  // Keep the public website fallback inside the user's browser.
-  if(g.status==='new'){setStatus(g,'opened');$('leadStatus').value='opened';}
-  messageNotice('Переход в VK запрошен. Карточка перенесена в «В работе». Отправка сообщения не подтверждена.');
-  void copyDraftText();
- };
+ $('draft').oninput=()=>{const href=dialogUrl(g,$('draft').value);$('draftLink').href=href;$('prepareMessage').href=href;$('openDialog').href=dialogUrl(g,'');$('copyStatus').textContent='Текст изменён. Скопируйте письмо заново.';};
+ if(!insideVk)for(const id of ['openDialog','prepareMessage','draftLink'])$(id).onclick=()=>{void copyDraftText();};
  $('leadStatus').onchange=e=>setStatus(g,e.target.value);
 }
 function details(g){const s=score(g);modal(g.name,`<p>${esc(g.description||g.category)}</p><p>Впервые найдено: <b>${date(g.firstSeen)}</b><br>Дата создания: <b>${creationTimestamp(g,mode==='demo')!==null?date(creationTimestamp(g,mode==='demo'))+(g.demo?' (вымышленная)':''):'не подтверждена'}</b><br>Источник: ${esc(g.source)}${g.latestPost?`<br>Последняя доступная публикация: ${date(g.latestPost*1000)}`:''}</p>${g.observation?`<div class="modalnote">Проверок ID: ${g.observation.checks}. Не вернулся в ответе: ${g.observation.missingChecks} раз.${g.observation.appearance?.kind==='frontier_candidate'?'<br>Метод: ID выше предыдущей границы; переход из заглушки/пропуска в доступную группу. Это не доказательство времени регистрации.':''}<br>Результат: ${esc({baseline:'Исходная база, возраст неизвестен',candidate_today:'Кандидат за сегодня; создание не подтверждено',candidate_other_day:'Кандидат вне сегодняшнего интервала',frontier_today:'Кандидат по росту ID; дата создания не подтверждена',frontier_other_day:'Кандидат по росту ID вне сегодняшнего интервала',older:'Есть публикация до интервала появления — группа старше'}[g.observation.verdict])}${['candidate','frontier_candidate'].includes(g.observation.appearance?.kind)?'<br>Интервал: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):''}${g.observation.oldestObservedPost?'<br>Самая ранняя найденная публикация: '+date(g.observation.oldestObservedPost):''}${g.observation.wallError?'<br>Стена: '+esc(g.observation.wallError):''}</div>`:''}<h3>Почему приоритет ${s.value} из 100</h3><ul>${s.reasons.map(r=>`<li>${esc(r)}</li>`).join('')||'<li>Недостаточно признаков — оцените сообщество вручную.</li>'}</ul><p>Наличие аватарки и обложки не говорит о качестве дизайна или готовности купить услугу.</p><div class="modalrow"><button id="detailCompose" class="primary">Подготовить предложение</button>${!g.demo?`<a class="secondary" target="_blank" rel="noopener noreferrer" href="https://vk.ru/club${g.id}">Посмотреть в ВК ↗</a>`:''}</div>`);$('detailCompose').onclick=()=>compose(g);}
