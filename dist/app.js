@@ -1,11 +1,11 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.4';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.4';
-import {getBridge} from './vk-start.js?v=11.48.4';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.4';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.4';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.48.5';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.48.5';
+import {getBridge} from './vk-start.js?v=11.48.5';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.48.5';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.48.5';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.4';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.4';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.48.5';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.48.5';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -126,11 +126,6 @@ function reserveDialogWindow(){
 }
 async function openDialogTarget(g,text,reserved){
  const url=dialogUrl(g,text);
- // VK Bridge does not expose a supported native "open conversation" method.
- // Never replace the Mini App frame or call window.open from inside VK: both
- // routes hand the URL to the external browser and make the user leave the app.
- // The caller keeps the full text copied and shows a clear in-app explanation.
- if(isVkHost(window))return false;
  if(reserved&&!reserved.closed){reserved.location.replace(url);reserved.focus();return true;}
  let supported=false;
  if(auth.bridge?.supportsAsync){
@@ -139,6 +134,12 @@ async function openDialogTarget(g,text,reserved){
  if(supported){
   const result=await deadline(auth.bridge.send('VKWebAppOpenLink',{link:url}),5000,'VK не подтвердил открытие. Проверьте диалог перед повтором.');
   return result?.result===true;
+ }
+ // VK Bridge has no universal native chat-opening method. Preserve the
+ // previous working fallback for VK: navigate to the VK conversation URL
+ // with the prepared text instead of stopping at an unsupported-client notice.
+ if(isVkHost(window)){
+  try{window.location.assign(url);return true;}catch{return false;}
  }
  const popup=window.open(url,'_blank');
  if(popup)popup.opener=null;
@@ -189,7 +190,7 @@ async function prepareNativeMessage(g,text,{dialogOnly=false}={}){
    if(g.status==='new')setStatus(g,'opened');
   }
   if(result.status==='dialog')show('Диалог открыт по ссылке с полным письмом. Если VK не заполнил строку ввода, '+(result.copied?'письмо уже скопировано — вставьте его.':'скопируйте письмо кнопкой выше.')+' Отправку подтвердите в VK.');
-  else if(result.status==='link-required')show(isVkHost(window)?'VK не предоставляет Mini App нативное открытие диалога внутри клиента. '+(result.copied?'Письмо скопировано — откройте сообщество в VK вручную и вставьте его.':'Скопируйте письмо кнопкой выше, затем откройте сообщество в VK вручную.'):'VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
+  else if(result.status==='link-required')show('VK не подтвердил открытие. Используйте ссылку «Открыть с текстом» ниже.'+(result.copied?' Письмо уже скопировано.':''));
   else if(result.status==='confirmed')show('VK завершил работу с окном сообщения. Проверить отправку можно в диалоге; статус работы отмечается вручную.');
   else show('Отправка не подтверждена. Проверьте диалог VK перед повтором, чтобы не отправить письмо дважды.');
   return result;
