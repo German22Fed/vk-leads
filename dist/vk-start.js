@@ -1,4 +1,4 @@
-import {browserBridge, startVkLaunch} from './vk-connection.js?v=11.48.1';
+import {browserBridge, startVkLaunch} from './vk-connection.js?v=11.48.7';
 
 // This module also runs from <head>, independently of app.js and its UI.
 // Authorization later reuses the same initialized bridge.
@@ -15,4 +15,3 @@ launchReady.then(result => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, {once:true});
   else show();
 });
-

@@ -1,4 +1,4 @@
-import {isUsableGroup} from './vk-data.js?v=11.48.1';
+import {isUsableGroup} from './vk-data.js?v=11.48.7';
 
 export function errorText(error, secret = '') {
   const data = error?.error_data || error?.error || error?.data || error;
@@ -23,7 +23,17 @@ export function isVkHost(win = window) {
   const ua = String(win.navigator?.userAgent || '').toLowerCase();
   const query = new URLSearchParams(win.location?.search || '');
   // Loading the Bridge library on the public site does not make it a VK host.
-  return win.parent !== win || Boolean(win.AndroidBridge || win.webkit?.messageHandlers?.VKWebAppClose || win.webkit?.messageHandlers?.VKWebAppInit || win.ReactNativeWebView) || /(^|\.)vk\.(ru|com)$/.test(host) || /vk(?:androidapp|[_-]ios|webapp)/.test(ua) || Boolean(query.get('vk_app_id') || query.get('vk_platform') || query.get('vk_user_id'));
+  // Mobile VK can, however, run a Mini App in an embedded WebView without an
+  // iframe, a vk.ru hostname, or a stable user-agent marker.  The Bridge
+  // exposes the authoritative runtime check for that case.  Without it the
+  // message action incorrectly falls through to window.open/location.assign,
+  // which is exactly the browser jump users see from inside VK.
+  let bridgeEmbedded = false;
+  try {
+    const bridge = win.vkBridge || win.vkConnect;
+    bridgeEmbedded = Boolean(bridge?.isEmbedded?.() || bridge?.isWebView?.());
+  } catch {}
+  return win.parent !== win || bridgeEmbedded || Boolean(win.AndroidBridge || win.webkit?.messageHandlers?.VKWebAppClose || win.webkit?.messageHandlers?.VKWebAppInit || win.ReactNativeWebView) || /(^|\.)vk\.(ru|com)$/.test(host) || /vk(?:androidapp|[_-]ios|webapp)/.test(ua) || Boolean(query.get('vk_app_id') || query.get('vk_platform') || query.get('vk_user_id'));
 }
 
 // Host initialization is separate from user authorization and must happen at launch.
@@ -150,4 +160,3 @@ export class VkConnection {
     return this.request(method, params, this.token);
   }
 }
-

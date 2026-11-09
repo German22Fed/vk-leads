@@ -1,4 +1,4 @@
-import {groupRows,isIncompleteGroup,isDeletedMarker,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.48.1';
+import {groupRows,isIncompleteGroup,isDeletedMarker,isUsableGroup,isClientFitGroup} from './vk-data.js?v=11.48.7';
 import {normalizeGroup} from './core.js';
 
 const MAX_ID = 2147479999;
@@ -88,4 +88,3 @@ export async function collectRecentIds({api,topId,count=500,signal,onProgress=()
   }
   return {groups,checked,wallChecks,wallErrors,incompleteCount,deletedCount,nextId:topId-checked};
 }
-
