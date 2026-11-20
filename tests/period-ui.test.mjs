@@ -33,11 +33,14 @@ test('Prepared and empty-chat actions are direct anchors and keep edited full te
  ctx.g={id:42,name:'Психолог',status:'new'};vm.runInContext('compose(g)',ctx);
  assert.match(markup,/<a[^>]*id="openDialog"[^>]*href="https:\/\/vk.ru\/im\?sel=-42&amp;msg="/);
  assert.match(markup,/<a[^>]*id="prepareMessage"[^>]*href="https:\/\/vk.ru\/im\?sel=-42&amp;msg=/);
- assert.match(markup,/id="draftLink"[^>]*target="_top"/);
+ assert.match(markup,/id="draftLink"[^>]*target="_blank"/);
  const edited=DEFAULT_TEMPLATE+'\nДополнение & ? #';elements.draft.value=edited;elements.draft.oninput();
  for(const id of ['draftLink','prepareMessage'])assert.equal(new URL(elements[id].href).searchParams.get('msg'),edited);
  for(const id of ['openDialog','prepareMessage','draftLink'])assert.equal(elements[id].onclick(),undefined);
  assert.equal(copies,3); // no preventDefault, no authorization or verification dependency
+ ctx.window={};ctx.isVkHost=()=>true;vm.runInContext('compose(g)',ctx);
+ for(const id of ['openDialog','prepareMessage','draftLink'])assert.match(markup,new RegExp('id="'+id+'"[^>]*target="_top"'));
+ assert.equal(ctx.g.status,'new');
 });
 test('Card navigation is synchronous before clipboard and handles blocked popups without claiming delivery',()=>{
  const order=[],notices=[];let allow=true;
@@ -48,3 +51,4 @@ test('Card navigation is synchronous before clipboard and handles blocked popups
  assert.equal(vm.runInContext("openConversationNow({id:42},'Текст')",ctx),false);
  assert.match(notices.at(-1),/не подтвердил/);
 });
+

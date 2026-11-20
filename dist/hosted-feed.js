@@ -1,5 +1,5 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.48.15';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.48.15';
+import {isLeadFitGroup} from './vk-data.js?v=11.49';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.49';
 export function syncPeriodButtons(period,root=document){
   root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
     const active=(b.dataset.cloudPeriod??b.dataset.period)===period;
@@ -40,7 +40,7 @@ export function coverageText(data){
   const n=c.counts;
   return `Охват последнего прохода: ${c.checkedThisPass} ID (${c.scanStart}–${c.scanEnd}). Это часть VK, не все новые сообщества. `+
     (c.gapSeconds!==null?`Пауза между проходами: ${Math.round(c.gapSeconds/60)} мин. `:'')+
-    `В сохранённой базе: ${c.tracked}. Готовы к показу: ${n.published}; ждут проверки: ${n.pendingVerification}; не подходят по названию: ${n.irrelevant}; не подходят по аудитории: ${n.audience}; старые посты: ${n.oldPosts}; недоступны/ошибка стены: ${n.unavailable+n.wallError+n.withdrawn}; без интервала: ${n.withoutInterval}; вне последних суток: ${n.olderInterval||0}. `+
+    `В сохранённой базе: ${c.tracked}. Готовы к показу: ${n.published}; ждут проверки: ${n.pendingVerification}; исключены по контенту: ${n.adult||0}; не подходят по тематике: ${n.irrelevant}; не подходят по аудитории: ${n.audience}; старые посты: ${n.oldPosts}; недоступны/ошибка стены: ${n.unavailable+n.wallError+n.withdrawn}; без интервала: ${n.withoutInterval}; вне последних суток: ${n.olderInterval||0}. `+
     `Пересекают границы периода и не включены в точную подборку: последний час — ${c.periods['1h'].uncertainBoundary}, 1–3 часа — ${c.periods['1-3h'].uncertainBoundary}. `+
     (c.retentionDropped?`Удалено из истории из-за ограничения хранения: ${c.retentionDropped}. `:'')+
     'Количество карточек не равно числу созданных в VK групп. Интервал наблюдения не подтверждает регистрацию.';
@@ -89,7 +89,7 @@ export function initHostedFeed(onUpdate,_seed,options){
     <p id="cloudRefreshInfo" class="refreshInfo">Автообновление каждую минуту, пока приложение открыто.</p>
     <details><summary>Охват поиска и причины отсева</summary><p id="cloudCoverage"></p></details>
     <div id="cloudSetup" hidden><p>Подключение требуется один раз владельцу приложения. Посетителям ключ не нужен.</p><a class="link" href="https://github.com/German22Fed/vk-leads/settings/secrets/actions" target="_blank" rel="noopener noreferrer">Добавить VK_SERVICE_TOKEN ↗</a> · <a class="link" href="https://github.com/German22Fed/vk-leads/actions/workflows/vk-collector.yml" target="_blank" rel="noopener noreferrer">Запустить сборщик / журнал ошибок ↗</a></div>
-    <small>Кандидаты у растущей верхней границы ID: раньше VK возвращал заглушку, теперь — доступное сообщество. Начальная база, повторы и обнаруженные старые посты исключаются. Период — интервал этого перехода, не дата регистрации. Ранее скрытые или восстановленные группы полностью исключить нельзя. Проверки по расписанию примерно раз в 15 минут; возможны задержки.</small>`;
+    <small>Кандидаты у растущей верхней границы ID: раньше VK возвращал заглушку, теперь — доступное сообщество. Начальная база, повторы и обнаруженные старые посты исключаются. Период — интервал этого перехода, не дата регистрации. Ранее скрытые или восстановленные группы полностью исключить нельзя. Проверки по расписанию раз в 10 минут; возможны задержки.</small>`;
   const status=document.getElementById('cloudStatus'),badge=document.getElementById('cloudBadge'),button=document.getElementById('cloudRefresh');
   const mainButton=document.getElementById('searchBtn'),summary=document.getElementById('searchFeedback');
   syncPeriodButtons(document.getElementById('period').value);

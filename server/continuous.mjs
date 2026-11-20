@@ -1,6 +1,6 @@
 import {Collector, publicRecord, verdict} from '../dist/collector-engine.js';
 import {findIdFrontier} from '../dist/id-discovery.js';
-import {groupRows, isUsableGroup, isLeadFitGroup} from '../dist/vk-data.js';
+import {groupRows, isUsableGroup, isLeadFitGroup, isAdultGroup, CONTENT_FILTER_VERSION} from '../dist/vk-data.js';
 import {normalizeGroup} from '../dist/core.js';
 import {beginFrontierCycle,observeFrontierBatch,compactFrontierWatch} from './frontier-watch.mjs';
 
@@ -8,8 +8,8 @@ const DAY=86400000, HOUR=3600000;
 // Keep a wider moving window and a larger verification queue so one delayed
 // GitHub run does not leave the UI with a tiny handful of cards. The public
 // feed still publishes only verified, deduplicated candidates.
-export const RECHECK_LIMIT=800;
-export const SCAN_WIDTH=12000;
+export const RECHECK_LIMIT=1000;
+export const SCAN_WIDTH=18000;
 const candidate=r=>['candidate','frontier_candidate'].includes(r.appearance?.kind);
 const fields='name,screen_name,photo_200,deactivated,members_count,city,activity,description,has_photo,cover,can_message';
 export function selectRechecks(records,now,limit=RECHECK_LIMIT){
@@ -17,7 +17,7 @@ export function selectRechecks(records,now,limit=RECHECK_LIMIT){
   const bucket=r=>r.appearance.from>=now-HOUR?0:r.appearance.from>=now-3*HOUR?1:r.appearance.from>=day?2:3;
   const pending=Object.values(records).filter(r=>candidate(r)&&!r.frontierWithdrawn&&r.appearance.from>=now-DAY&&
     r.group&&isLeadFitGroup(r.group)&&Number.isFinite(r.group.members)&&r.group.members<=500&&verdict(r,now)!=='older'&&
-    !(r.available&&r.group.wallUnavailable!==true&&r.group.verifiedAt>now-40*60000&&r.wallCheckedAt>now-40*60000&&!r.wallError));
+    !(r.available&&r.group.contentSafety?.version===CONTENT_FILTER_VERSION&&r.group.wallUnavailable!==true&&r.group.verifiedAt>now-40*60000&&r.wallCheckedAt>now-40*60000&&!r.wallError));
   // Reserve work for each time bucket, then give unused capacity back. A surge
   // in the last hour must not starve the 1–3h or today's queue indefinitely.
   const complete=r=>Number(r.group.avatar===true&&r.group.cover===true);
@@ -33,9 +33,11 @@ export function scanIds(state){
 }
 export function compactState(state,now){
   const rows=Object.values(state.records),keep=new Set(rows.filter(r=>r.id>=state.config.startId).map(r=>r.id));
-  const recent=rows.filter(r=>candidate(r)&&r.appearance.to>=now-(isLeadFitGroup(r.group)?7*DAY:DAY));
-  const retained=recent.sort((a,b)=>b.appearance.to-a.appearance.to).slice(0,10000);
-  state.retentionDropped=(state.retentionDropped||0)+recent.filter(r=>!retained.includes(r)&&!keep.has(r.id)).length;
+  const leads=new Set(rows.filter(r=>isLeadFitGroup(r.group)).map(r=>r.id));
+  const recent=rows.filter(r=>candidate(r)&&r.appearance.to>=now-(leads.has(r.id)?7*DAY:DAY));
+  const retained=recent.sort((a,b)=>Number(leads.has(b.id))-Number(leads.has(a.id))||b.appearance.to-a.appearance.to).slice(0,20000);
+  const retainedIds=new Set(retained.map(r=>r.id));
+  state.retentionDropped=(state.retentionDropped||0)+recent.filter(r=>!retainedIds.has(r.id)&&!keep.has(r.id)).length;
   for(const r of retained)keep.add(r.id);
   for(const r of rows.filter(r=>!r.everReturned&&r.firstChecked>=now-DAY).sort((a,b)=>b.firstChecked-a.firstChecked).slice(0,500))keep.add(r.id);
   for(const id of Object.keys(state.records))if(!keep.has(Number(id)))delete state.records[id];
@@ -78,14 +80,14 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
   if(run.status!=='ok')throw Error('Цикл VK не завершён. Предыдущая база сохранена.');
   // Revisit provisional names after the scan window has moved on. Keep the
   // original appearance evidence; renaming never resets a group's age.
-  const renames=Object.values(engine.state.records).filter(r=>candidate(r)&&!r.frontierWithdrawn&&r.appearance.to>=clock()-DAY&&r.group&&!isLeadFitGroup(r.group)&&r.group.verifiedAt<clock()-15*60000)
-    .sort((a,b)=>a.group.verifiedAt-b.group.verifiedAt).slice(0,500);
+  const renames=Object.values(engine.state.records).filter(r=>candidate(r)&&!r.frontierWithdrawn&&r.appearance.to>=clock()-DAY&&r.group&&!isLeadFitGroup(r.group)&&!isAdultGroup(r.group)&&(r.qualificationCheckedAt||r.group.verifiedAt)<clock()-15*60000)
+    .sort((a,b)=>(a.qualificationCheckedAt||a.group.verifiedAt)-(b.qualificationCheckedAt||b.group.verifiedAt)).slice(0,1500);
   for(let offset=0;offset<renames.length;offset+=99){
     const batch=renames.slice(offset,offset+99),ids=[1,...batch.map(r=>r.id)];
     const rows=groupRows(await api('groups.getById',{group_ids:ids.join(','),fields}),ids,{allowIncomplete:true});
     if(!rows.some(r=>r.id===1&&isUsableGroup(r)))throw Error('Контрольная группа недоступна. База не изменена.');
     const map=new Map(rows.map(r=>[r.id,r]));
-    for(const rec of batch){const row=map.get(rec.id);rec.available=isUsableGroup(row)&&!row.is_closed;
+    for(const rec of batch){const row=map.get(rec.id);rec.qualificationCheckedAt=clock();rec.available=isUsableGroup(row)&&!row.is_closed;
       if(rec.available)rec.group={...rec.group,...normalizeGroup(row),verifiedAt:clock(),verification:'groups.getById'};
     }
   }
@@ -126,9 +128,9 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
 }
 
 export function coverageReport(state,now,groups){
-  const rows=Object.values(state.records),counts={withoutInterval:0,olderInterval:0,withdrawn:0,irrelevant:0,audience:0,oldPosts:0,unavailable:0,wallError:0,pendingVerification:0,published:0};
+  const rows=Object.values(state.records),counts={withoutInterval:0,olderInterval:0,withdrawn:0,adult:0,irrelevant:0,audience:0,oldPosts:0,unavailable:0,wallError:0,pendingVerification:0,published:0};
   for(const r of rows){
-    const reason=!candidate(r)?'withoutInterval':r.appearance.from<now-DAY?'olderInterval':r.frontierWithdrawn?'withdrawn':!isLeadFitGroup(r.group)?'irrelevant':
+    const reason=!candidate(r)?'withoutInterval':r.appearance.from<now-DAY?'olderInterval':r.frontierWithdrawn?'withdrawn':isAdultGroup(r.group)?'adult':!isLeadFitGroup(r.group)?'irrelevant':
       !Number.isFinite(r.group.members)||r.group.members>500?'audience':verdict(r,now)==='older'?'oldPosts':!r.available?'unavailable':
       r.wallError?'wallError':eligible(r,now)?'published':'pendingVerification';
     counts[reason]++;

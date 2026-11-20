@@ -1,6 +1,46 @@
 export const cleanGroupName = row => typeof row?.name === 'string' ? row.name.trim() : '';
 export const hasGroupName = row => cleanGroupName(row).length > 0;
 
+// Text screening is shared by the collector and the UI. It deliberately does
+// not claim to classify photos/videos, or treat a medical topic as pornography.
+export const CONTENT_FILTER_VERSION = 1;
+const normalizeContent = text => String(text || '').normalize('NFKC').toLowerCase()
+  .replace(/[\u200b-\u200f\u2060\ufeff]/g, '').replace(/ё/g, 'е');
+const adultPatterns = [
+  /порн|эрот|хентай|хент(?:а|э)й|порнуха|онлифанс|онлифа(?:н|нс)/u,
+  /(?:^|[^\p{L}])(?:porn\w*|erotic\w*|adult|hentai|xxx|nsfw|onlyfans|xvideos|pornhub|xhamster|redtube)(?=$|[^\p{L}])/u,
+  /(?:^|[^\p{L}])(?:секс(?:а|ом)?|sex)(?=$|[^\p{L}])|(?:секс|sex)[_-]?(?:видео|video|chat|чат|услуг|знакомств|фото|онлайн|online|шоп|shop)/u,
+  /интим[\s_-]*(?:услуг|знакомств|массаж|встреч|фото|видео)|эскорт|проститут|нюдс|обнажен|голые\s+(?:девуш|женщ|парн)|слив[ыа]?\s+(?:девуш|интим|модел)|вебкам|webcam\s*(?:model|girl|sex)/u,
+  /(?:^|[^\p{L}])(?:bdsm|бдсм|разврат|похоть|фетиш)(?=$|[^\p{L}])/u
+];
+export function hasAdultText(text) {
+  const value = normalizeContent(text)
+    .replace(/сексолог[а-я]*|сексопатолог[а-я]*|сексуальн[а-я]*\s+(?:здоров[а-я]*|образован[а-я]*)/gu, '');
+  if(adultPatterns.some(pattern => pattern.test(value)))return true;
+  // Common mixed alphabet and spaced spellings, with boundaries to avoid
+  // matching fragments in normal business names.
+  return /(?:^|[^\p{L}])(?:[пn]\W*[оo0]\W*[рp]\W*[нh]\W*[оo0]|p\W*[оo0]\W*r\W*n|[эe]\W*[рp]\W*[оo0]\W*[тt])(?=$|[^\p{L}])/u.test(value);
+}
+export function isAdultGroup(row) {
+  return row?.contentSafety?.blocked === true ||
+    [row?.name,row?.description,row?.activity,row?.category,row?.status_text].some(hasAdultText);
+}
+export function inspectContent(row, items = []) {
+  const texts=[];
+  const visit=(post,depth=0)=>{
+    if(!post||depth>2)return;
+    texts.push(post.text);
+    for(const a of post.attachments||[]) {
+      const media=a[a.type];texts.push(media?.title,media?.description,media?.text);
+    }
+    for(const original of post.copy_history||[])visit(original,depth+1);
+  };
+  items.forEach(post=>visit(post));
+  const metadata=[row?.name,row?.description,row?.activity,row?.category].some(hasAdultText);
+  const posts=texts.some(hasAdultText);
+  return {version:CONTENT_FILTER_VERSION,blocked:metadata||posts,reason:metadata?'adult_metadata':posts?'adult_posts':null};
+}
+
 // VK can return a lightweight placeholder for a removed or unavailable public
 // page. It may have no `deactivated` flag and a literal name such as
 // "delete", so checking only for a non-empty name would create fake cards.
@@ -29,6 +69,8 @@ export const isClientFitName = row => {
 // local businesses, experts and personal brands while keeping technical,
 // gaming and meaningless names out of the sales queue.
 const leadMarkers = [
+  // Additional specific services and common English business names.
+  'груминг','зоосалон','зоомагазин','передержк','кинолог','автоэлектрик','автоподбор','детейлинг','детейлинг-центр','эвакуатор','автошкол','тонировк','полировк','грузоперевоз','грузчик','переезд','ателье','пошив','вязание на заказ','гравировк','типограф','полиграф','флорист','букет','шарик','аэродизайн','баня','сауна','глэмпинг','кемпинг','печи','забор','ворота','роллет','жалюзи','бурение','скважин','септик','каменщик','плиточник','муж на час','печать','оцифровк','реставрац','перетяжк','обивк','подиатр','подолог','нутрициолог','остеопат','йога','студия вокала','школа музыки','музыкальная школа','beauty','nail','lashes','brow','barbershop','salon','bakery','florist','furniture','cleaning','detailing','photography','tattoo',
   // Beauty, lashes, nails and body care
   'салон','парикмахер','барбершоп','бьюти','красот','косметолог','косметик','визаж','макияж','бров','ресниц','наращив','ламинирован','маникюр','педикюр','массаж','спа','стилист','эпиляц','депиляц','лазер','солярий','перманент','тату','пирсинг',
   // Furniture, interiors and made-to-order home goods
@@ -64,12 +106,15 @@ const genericLeadNames = new Set([
   'спорт','музыка','свадьба','бар','стол','магазин','маркет','центр','студия','сервис','услуги','мастер','проект','команда','компания',
   'подарки','туризм','путешествия','цветы','техника','обувь','одежда','здоровье','организация','организации','союз организаций'
 ]);
+const markerPatterns = new Map();
 const markerMatches = (name, term) => {
   if (term.includes(' ')) return name.includes(term);
-  if (shortLeadMarkers.has(term)) return new RegExp(`(?:^|\\s)${term}(?:$|\\s)`, 'u').test(name);
+  if(!markerPatterns.has(term))markerPatterns.set(term,shortLeadMarkers.has(term)
+    ?new RegExp(`(?:^|[^\\p{L}\\p{N}])${term}(?=$|[^\\p{L}\\p{N}])`, 'u')
+    :new RegExp(`(?:^|[^\\p{L}\\p{N}])${term}`, 'u'));
   // A commercial stem starts a word: матизаводов is not a завод, and
   // an incidental substring inside a personal name is not a niche.
-  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${term}`, 'u').test(name);
+  return markerPatterns.get(term).test(name);
 };
 const ambiguousNoise={
   'бот':'бот(?:ы|ов|а|у|ом|ами|ах)?',
@@ -77,16 +122,22 @@ const ambiguousNoise={
   'слив':'слив(?:ы|ов|а|у|ом|ами|ах)?',
   'мем':'мем(?:ы|ов|а|у|ом|ами|ах|чик[а-яё]*)?'
 };
+const noisePatterns=new Map();
 const noiseMatches=(name,term)=>{
+  if(noisePatterns.has(term))return noisePatterns.get(term).test(name);
   const pattern=ambiguousNoise[term];
-  if(pattern)return new RegExp(`(?:^|[^\\p{L}\\p{N}])${pattern}(?=$|[^\\p{L}\\p{N}])`,'u').test(name);
+  const regex=pattern?new RegExp(`(?:^|[^\\p{L}\\p{N}])${pattern}(?=$|[^\\p{L}\\p{N}])`,'u'):
   // Match a word/phrase prefix, not characters inside доставка, работы, Тигр.
-  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}`,'u').test(name);
+    new RegExp(`(?:^|[^\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}`,'u');
+  noisePatterns.set(term,regex);return regex.test(name);
 };
 export const isLeadFitName = row => {
-  if (!isClientFitName(row)) return false;
+  if (!isClientFitName(row) || isAdultGroup(row)) return false;
   const name = cleanGroupName(row).toLowerCase();
-  if (leadNoise.some(term => noiseMatches(name,term))) return false;
+  if(/(?:тебя|тебе|твой|для тебя).*(?:подарок|сюрприз)|(?:подарок|сюрприз).*(?:ждет|ждёт|приберегли)|выживание\s+\d+\s+дней|школьный\s+медиа\s*центр|^вкр\s*\d/u.test(name))return false;
+  const commercialMusic=/музыкальн[а-я]*\s+школ|школ[а-я]*\s+музык/u.test(name);
+  const petService=/груминг|зоосалон|ветеринар|передержк|зоомагазин/u.test(name);
+  if (leadNoise.some(term => !(term==='музык'&&commercialMusic) && !(term==='кошк'&&petService) && noiseMatches(name,term))) return false;
   const compactName = name.replace(/[«»"'“”]/g, '').replace(/\s+/g, ' ').trim();
   if (genericLeadNames.has(compactName)) return false;
   // VK's frontier can return concatenated placeholder-like names. Keep

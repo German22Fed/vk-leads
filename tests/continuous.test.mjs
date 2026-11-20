@@ -21,9 +21,9 @@ function fixture(){
 test('VK placeholders are stored as frontier probes without publishing fake cards',async()=>{
  const api=async(m,p)=>({groups:p.group_ids.split(',').map(Number).map(id=>({id,name:id===1?'Control':'delete'}))});
  let r=await collectOnce({api,discover:async()=>({id:100}),clock:()=>Date.UTC(2026,9,30,10)});
- assert.equal(r.feed.observation.checked,12000);assert.equal(r.feed.observation.deleted,12000);
+ assert.equal(r.feed.observation.checked,18000);assert.equal(r.feed.observation.deleted,18000);
  assert.equal(r.feed.observation.omitted,0);assert.equal(r.feed.observation.tracked,0);
- assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.frontierProbes,12000);assert.equal(feedOutcome(r.feed).kind,'ready');
+ assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.frontierProbes,18000);assert.equal(feedOutcome(r.feed).kind,'ready');
  // A deleted/unavailable placeholder is never evidence of nonexistence.
  r=await collectOnce({api,previous:r.state,clock:()=>Date.UTC(2026,9,30,10,15)});
  assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.tracked,0);
@@ -101,6 +101,7 @@ test('Hourly and 1-3h candidates precede a large morning backlog; fresh checks a
  const chosen=selectRechecks(records,now);assert.equal(chosen.length,402);
  assert.deepEqual(chosen.slice(0,2).map(r=>r.id),[501,502]);
  records[501].group.verifiedAt=records[501].wallCheckedAt=now;
+ records[501].group.contentSafety={version:1,blocked:false};
  assert.equal(selectRechecks(records,now).some(r=>r.id===501),false);
 });
 
@@ -108,7 +109,7 @@ test('Heavy hourly traffic cannot starve the 1–3h queue',()=>{
  const now=Date.UTC(2026,10,3,17),records={};
  for(let id=100;id<1100;id++)records[id]={id,available:true,appearance:{kind:'frontier_candidate',from:now-(id<600?1800000:7200000),to:now-1000},group:{id,name:'Мебель на заказ',members:5}};
  const selected=selectRechecks(records,now);
- assert.equal(selected.length,800);assert.ok(selected.filter(r=>r.id>=600).length>=150);
+ assert.equal(selected.length,1000);assert.ok(selected.filter(r=>r.id>=600).length>=150);
 });
 
 test('Old and uncertain multi-day intervals do not consume live recheck slots',()=>{
@@ -126,7 +127,7 @@ test('Within each time bucket incomplete design is checked before a fully decora
 
 test('Expanded scan covers IDs beyond the former 2000 limit and respects integer ceiling',()=>{
  const ids=scanIds({config:{startId:100}});
- assert.equal(ids.length,12000);assert.equal(ids[0],100);assert.equal(ids.at(-1),12099);
+ assert.equal(ids.length,18000);assert.equal(ids[0],100);assert.equal(ids.at(-1),18099);
  assert.equal(scanIds({config:{startId:2147483640}}).at(-1),2147483647);
 });
 

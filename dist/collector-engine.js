@@ -1,5 +1,5 @@
 import { normalizeGroup } from './core.js';
-import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup } from './vk-data.js?v=11.48.15';
+import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup, inspectContent } from './vk-data.js?v=11.49';
 
 const DAY = 86400000;
 export const moscowDay = at => new Date(at + 10800000).toISOString().slice(0, 10);
@@ -111,6 +111,7 @@ export class Collector {
       if(first.count>0&&!dates.length)throw Error('Не подтверждены даты публикаций на стене сообщества.');
       if (dates.length) rec.oldestObservedPost = Math.min(rec.oldestObservedPost ?? Infinity, ...dates);
       rec.group.posts = first.count; rec.group.wallUnavailable = false;
+      rec.group.contentSafety = inspectContent(rec.group, items);
       rec.group.latestPost = first.items.filter(p => Number.isFinite(p.date)).reduce((m,p)=>Math.max(m,p.date),0) || null;
       rec.wallCheckedAt = this.clock(); rec.wallError = null;
     } catch (e) { rec.wallError = e.message; }

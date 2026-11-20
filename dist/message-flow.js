@@ -1,4 +1,4 @@
-import {deadline} from './vk-connection.js?v=11.48.15';
+import {deadline} from './vk-connection.js?v=11.49';
 
 // Call directly from a click, not after verification or a supportsAsync request.
 export async function copyPreparedText(text,{bridge,clipboard,legacyCopy=()=>false,selectText=()=>{},timeout=4000}={}){
