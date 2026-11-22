@@ -1,15 +1,17 @@
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.49';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.49';
-import {getBridge} from './vk-start.js?v=11.49';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.49';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.49';
+import {pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot} from './feed-performance.js?v=11.50';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.50';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.50';
+import {getBridge} from './vk-start.js?v=11.50';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.50';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.50';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.49';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.49';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.50';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.50';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
-const date=n=>new Date(n).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})+' МСК';
+const dateFormatter=new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'});
+const date=n=>Number.isFinite(n)?dateFormatter.format(n)+' МСК':'—';
 let toastTimer,view='discover',mode='live',busy=false,runCancelled=false,autoTimer,autoFeedShown=false,freshFilter=false,snapshotMode=false,freshSessionIds=new Set(),freshObservationStartedAt=0,lastSearchAt=0,lastDialogOpenAt=0;
 let startAutoSearch=()=>{};
 let hostedSearch=null;
@@ -21,7 +23,10 @@ if(read('radar.template.version','')!=='grm-studio-v1'){template=DEFAULT_TEMPLAT
 const isVerifiedGroup=g=>isLeadFitGroup(g)&&Number.isFinite(g?.verifiedAt);
 const isFreshLead=g=>isVerifiedGroup(g)&&Number.isFinite(g?.members)&&g.members<=10000;
 let live=read('radar.live',[]);if(!Array.isArray(live))live=[];live=live.filter(g=>isVerifiedGroup(g));
+const storedProgress=read('radar.leadState',{});
+const progressState=storedProgress&&typeof storedProgress==='object'&&!Array.isArray(storedProgress)?storedProgress:{};rememberProgress(progressState,live);live=personalArchive(live);
 const demo=[];
+let currentPage=1,pageCriteria='',visibleIds=new Set(),lastCardsHTML='';
 let serverConnected=false,hostedSnapshotUpdatedAt=0;
 function restoreViewport(viewport){
  const apply=()=>{try{if(Math.abs(window.scrollX-viewport.x)>1||Math.abs(window.scrollY-viewport.y)>1)window.scrollTo({left:viewport.x,top:viewport.y,behavior:'auto'});}catch{};if(viewport.focusId){const el=document.getElementById(viewport.focusId);if(el&&el!==document.activeElement)try{el.focus({preventScroll:true});}catch{}}};
@@ -32,13 +37,15 @@ const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?
     Number.isFinite(g.verifiedAt)&&Number.isFinite(g.observation?.wallCheckedAt)&&
     !g.observation.wallError&&(!hostedSnapshotUpdatedAt||Date.now()-hostedSnapshotUpdatedAt<=6*3600000)):
   live;
-const persist=()=>write('radar.'+mode,mode==='demo'?demo:live);
+const persist=()=>{if(mode==='demo')return;rememberProgress(progressState,live);if(write('radar.leadState',progressState))write('radar.live',personalArchive(live));};
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),5000);}
 function filters(){return {view,query:$('filterQuery').value.trim(),onlyNew:$('onlyNew').checked,needsDesign:$('needsDesign').checked,exact:$('exact').checked,canMessage:$('canMessage').checked,period:$('period').value,dateBasis:$('dateBasis').value,minHours:$('minHours').value,maxHours:$('maxHours').value,allowDemo:mode==='demo',sort:$('sort').value};}
 const statuses={new:'Не обработано',opened:'Диалог открыт',sent:'Предложение отправлено',replied:'Ответили',client:'Клиент',hidden:'Не подходит'};
 function render(){
  const viewport={x:window.scrollX,y:window.scrollY,focusId:document.activeElement?.id||''};
  const all=groups(), f=filters(), baseList=filterGroups(all,f), list=freshFilter&&view==='discover'?baseList.filter(g=>freshSessionIds.has(g.id)):baseList;
+ const criteria=JSON.stringify({...f,freshFilter});if(criteria!==pageCriteria){currentPage=1;pageCriteria=criteria;}
+ const page=pageSlice(list,currentPage);currentPage=page.page;visibleIds=new Set(page.rows.map(g=>g.id));
  const created=f.dateBasis==='created',appeared=f.dateBasis==='appeared',byId=f.dateBasis==='id';
  $('recentTitle').textContent=byId?'Снимок последних ID':created?'Подтверждённая дата создания':appeared?'Свежие кандидаты по росту ID':'Первое обнаружение в базе';
  const range=timeWindow(f.period,Date.now(),f.minHours,f.maxHours);
@@ -50,10 +57,12 @@ function render(){
  document.querySelector('.recentIntro').textContent=byId?'Свежий снимок VK без подтверждённой даты создания.':'Выберите, когда сообщество появилось в наблюдении. «Сегодня» — с 00:00 по Москве.';
  $('rangeError').hidden=!invalid;
  syncPeriodButtons(f.period);
+ const periodCounts=new Map();
  if(hostedFeed)document.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
   b.dataset.label??=b.textContent;
   const period=b.dataset.cloudPeriod??b.dataset.period;
-  b.textContent=b.dataset.label+' · '+filterGroups(all,{...f,view:'discover',dateBasis:'appeared',period},Date.now()).length;
+  if(!periodCounts.has(period))periodCounts.set(period,filterGroups(all,{...f,view:'discover',dateBasis:'appeared',period,noSort:true},Date.now()).length);
+  b.textContent=b.dataset.label+' · '+periodCounts.get(period);
   b.title='Количество с вашими фильтрами. Обработанные карточки исключены. Время — наблюдение, не регистрация.';
  });
  const unknown=all.filter(g=>creationTimestamp(g,mode==='demo')===null).length;
@@ -63,16 +72,21 @@ function render(){
  $('emptyText').textContent=hostedFeed&&view==='discover'?'Нет непросмотренных кандидатов под выбранные условия. Обработанные находятся в «В работе». Снимите фильтр оформления или выберите другой период. Обновление загружает последнюю проверку сборщика; новые карточки появляются после серверного сбора.':freshFilter&&view==='discover'?'Нажмите кнопку периода, чтобы обновить подбор. Повторы скрываются.':snapshotMode?'Измените направление поиска или повторите проверку VK.':appeared?'Нажмите «Найти подходящие сообщества» и оставьте Mini App открытым для наблюдения VK.':created&&mode==='live'?'Точная дата создания не подтверждена VK.':'Измените период или направление поиска.';
  $('totalStat').textContent=all.length;$('newStat').textContent=all.filter(g=>!g.seen&&g.status!=='hidden').length;$('newChip').textContent=$('newStat').textContent;$('matchStat').textContent=all.filter(g=>g.posts>=2&&g.posts<=3&&g.avatar===true&&g.cover===true&&g.status!=='hidden').length;$('workStat').textContent=all.filter(g=>!['new','hidden'].includes(g.status)).length;$('savedCount').textContent=all.filter(g=>g.saved).length;$('listCount').textContent=list.length;
  $('demoBanner').hidden=mode!=='demo';renderConnection();
- $('cards').innerHTML=list.map(g=>{const s=score(g);const pic=safeImage(g.photo),cover=safeImage(g.coverUrl);return `<article class="card" data-id="${g.id}"><div class="cover" style="background:${g.demo?g.bg:'#e8edf5'};color:${g.demo?g.ink:'#7d8ea8'}">${cover?`<img src="${cover}" alt="Обложка сообщества" loading="lazy" referrerpolicy="no-referrer">`:`<div class="coverart"><div>${esc(g.art||'сообщество')}<span>${esc(g.artSub||'ВКонтакте')}</span></div></div>`}${created&&creationTimestamp(g,mode==='demo')!==null?'<span class="newbadge">◷ ДАТА СОЗДАНИЯ'+(g.demo?' · ДЕМО':'')+'</span>':!g.seen?'<span class="newbadge">● НОВОЕ ДЛЯ ВАС</span>':''}<button class="bookmark ${g.saved?'selected':''}" data-action="save" aria-label="${g.saved?'Убрать из сохранённых':'Сохранить'}">${g.saved?'★':'☆'}</button></div><div class="cardbody"><div class="identity"><div class="avatar" ${g.demo?`style="background:${g.bg};color:${g.ink}"`:''}>${pic?`<img src="${pic}" alt="" loading="lazy" referrerpolicy="no-referrer">`:esc(g.monogram||g.name[0])}</div><div><h3 title="${esc(g.name)}">${esc(g.name)}</h3><p>${esc(g.category)} · ${esc(g.city)}</p></div></div><div class="numbers"><span>♧ <b>${g.members??'—'}</b> подписчиков</span><span>▤ <b>${g.posts??'—'}</b> поста / постов</span></div><div class="tags"><span class="tag good">✓ Данные VK проверены · ${date(g.verifiedAt)}</span>${g.observation?.appearance?.kind==='frontier_candidate'?'<span class="tag">Кандидат по росту ID · создание не подтверждено</span>':''}<span class="tag ${g.avatar?'good':''}">${g.avatar===null?'?':g.avatar?'✓':'−'} Аватарка</span><span class="tag ${g.cover?'good':''}">${g.cover===null?'?':g.cover?'✓':'−'} Обложка</span><span class="tag ${g.canMessage?'good':''}">${g.canMessage===null?'?':g.canMessage?'✓':'−'} Сообщения</span></div><div class="priority"><span>✧</span>${s.value>=80?'Высокий приоритет':s.value>=50?'Есть потенциал':'Нужна оценка'}<b>${s.value} / 100</b></div><p class="reason">${esc(g.posts>=2&&g.posts<=3?'Мало публикаций — повод предложить единый стиль':g.wallUnavailable?'Стена недоступна: число постов не определено':'Проверьте, что можно улучшить в оформлении')}</p><div class="cardactions"><button class="messagebtn" data-action="message" ${g.demo||g.canMessage===false?'disabled':''}>↗ &nbsp; ${g.canMessage===false?'Сообщения закрыты':'Написать в VK'}</button><button class="details" data-action="sent" title="Отметить отправку вручную и убрать из свежей ленты">Уже написал</button><button class="details" data-action="details">Подробнее</button></div><div class="cardfoot"><span>${appeared?'Переход ID: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):(created?'Создано':'Найдено')+' '+date(created?creationTimestamp(g,mode==='demo'):g.firstSeen)} · ${esc(statuses[g.status]||g.status)}</span><button data-action="hide">Не подходит</button></div></div></article>`;}).join('');$('empty').hidden=list.length>0;restoreViewport(viewport);
+ const cardsHTML=page.rows.map(g=>{const s=score(g);const pic=safeImage(g.photo),cover=safeImage(g.coverUrl);return `<article class="card" data-id="${g.id}"><div class="cover" style="background:${g.demo?g.bg:'#e8edf5'};color:${g.demo?g.ink:'#7d8ea8'}">${cover?`<img src="${cover}" alt="Обложка сообщества" loading="lazy" referrerpolicy="no-referrer">`:`<div class="coverart"><div>${esc(g.art||'сообщество')}<span>${esc(g.artSub||'ВКонтакте')}</span></div></div>`}${created&&creationTimestamp(g,mode==='demo')!==null?'<span class="newbadge">◷ ДАТА СОЗДАНИЯ'+(g.demo?' · ДЕМО':'')+'</span>':!g.seen?'<span class="newbadge">● НОВОЕ ДЛЯ ВАС</span>':''}<button class="bookmark ${g.saved?'selected':''}" data-action="save" aria-label="${g.saved?'Убрать из сохранённых':'Сохранить'}">${g.saved?'★':'☆'}</button></div><div class="cardbody"><div class="identity"><div class="avatar" ${g.demo?`style="background:${g.bg};color:${g.ink}"`:''}>${pic?`<img src="${pic}" alt="" loading="lazy" referrerpolicy="no-referrer">`:esc(g.monogram||g.name[0])}</div><div><h3 title="${esc(g.name)}">${esc(g.name)}</h3><p>${esc(g.category)} · ${esc(g.city)}</p></div></div><div class="numbers"><span>♧ <b>${g.members??'—'}</b> подписчиков</span><span>▤ <b>${g.posts??'—'}</b> поста / постов</span></div><div class="tags"><span class="tag good">✓ Данные VK проверены · ${date(g.verifiedAt)}</span>${g.observation?.appearance?.kind==='frontier_candidate'?'<span class="tag">Кандидат по росту ID · создание не подтверждено</span>':''}<span class="tag ${g.avatar?'good':''}">${g.avatar===null?'?':g.avatar?'✓':'−'} Аватарка</span><span class="tag ${g.cover?'good':''}">${g.cover===null?'?':g.cover?'✓':'−'} Обложка</span><span class="tag ${g.canMessage?'good':''}">${g.canMessage===null?'?':g.canMessage?'✓':'−'} Сообщения</span></div><div class="priority"><span>✧</span>${s.value>=80?'Высокий приоритет':s.value>=50?'Есть потенциал':'Нужна оценка'}<b>${s.value} / 100</b></div><p class="reason">${esc(g.posts>=2&&g.posts<=3?'Мало публикаций — повод предложить единый стиль':g.wallUnavailable?'Стена недоступна: число постов не определено':'Проверьте, что можно улучшить в оформлении')}</p><div class="cardactions"><button class="messagebtn" data-action="message" ${g.demo||g.canMessage===false?'disabled':''}>↗ &nbsp; ${g.canMessage===false?'Сообщения закрыты':'Написать в VK'}</button><button class="details" data-action="sent" title="Отметить отправку вручную и убрать из свежей ленты">Уже написал</button><button class="details" data-action="details">Подробнее</button></div><div class="cardfoot"><span>${appeared?'Переход ID: '+date(g.observation.appearance.from)+' — '+date(g.observation.appearance.to):(created?'Создано':'Найдено')+' '+date(created?creationTimestamp(g,mode==='demo'):g.firstSeen)} · ${esc(statuses[g.status]||g.status)}</span><button data-action="hide">Не подходит</button></div></div></article>`;}).join('');
+ if(cardsHTML!==lastCardsHTML){$('cards').innerHTML=cardsHTML;lastCardsHTML=cardsHTML;}
+ $('feedPager').hidden=page.total===0;$('pageInfo').textContent=`${(page.page-1)*36+1}–${Math.min(page.page*36,page.total)} из ${page.total} · Страница ${page.page} из ${page.pages}`;
+ $('prevPage').disabled=page.page<=1;$('nextPage').disabled=page.page>=page.pages;
+ $('empty').hidden=list.length>0;restoreViewport(viewport);
 }
 function modal(title,html){$('modalTitle').textContent=title;$('modalBody').innerHTML=html;if(!$('modal').open)$('modal').showModal();}
 function deleteLocalData(){
-  ['radar.live','radar.settings','radar.template'].forEach(key=>localStorage.removeItem(key));
+  ['radar.live','radar.settings','radar.template','radar.leadState'].forEach(key=>localStorage.removeItem(key));
   const user=Number(new URLSearchParams(location.search).get('vk_user_id'))||'browser';
   try{indexedDB.deleteDatabase('radar-monitor-'+user);}catch{}
-  live=[];settings={};template=DEFAULT_TEMPLATE;mode='live';freshSessionIds=new Set();persist();render();toast('Локальные данные удалены с этого устройства.');
+  for(const id of Object.keys(progressState))delete progressState[id];live=[];settings={};template=DEFAULT_TEMPLATE;mode='live';freshSessionIds=new Set();persist();render();toast('Локальные данные удалены с этого устройства.');
 }
 function legalModal(){modal('Документы и поддержка',`<h3>Политика конфиденциальности</h3><p>VK Leads обрабатывает только открытые данные сообществ, которые возвращает VK API: название, ссылка, описание, число подписчиков, публикации и доступность сообщений. Токен авторизации VK хранится только в памяти текущей сессии и не записывается в экспорт.</p><p>Карточки, фильтры и шаблон сообщения сохраняются локально в браузере. Данные не продаются и не используются для автоматической рассылки. Постоянный сборщик публикует открытые данные сообществ и историю наблюдения в публичном репозитории GitHub и общей ленте. Сервисный ключ владельца хранится в GitHub Secrets; он не передаётся посетителям сайта. Личные статусы и шаблон остаются в браузере. Удаление локальных данных не удаляет публичную базу и историю Git; по этому вопросу обратитесь в поддержку.</p><h3>Пользовательское соглашение</h3><p>Вы запускаете поиск и открываете каждый диалог вручную. Приложение не отправляет сообщения автоматически. Вы обязуетесь соблюдать правила VK, уважать отказ от контакта, не отправлять массовые или повторяющиеся предложения и проверять содержание сообщения перед открытием диалога.</p><p>Время «впервые найдено» означает момент обнаружения в вашей локальной базе и не подтверждает дату создания сообщества.</p><h3>Поддержка</h3><p><a class="link" href="https://github.com/German22Fed/vk-leads/issues" target="_blank" rel="noopener noreferrer">Сообщить об ошибке или запросить помощь на GitHub ↗</a></p><p class="modalnote">Для удаления локальных карточек, фильтров и истории нажмите кнопку ниже. Выход из VK также удаляет токен из памяти после перезагрузки.</p><button class="secondary" id="deleteLocalData">Удалить локальные данные</button>`);$('deleteLocalData').onclick=()=>{if(confirm('Удалить карточки, фильтры и историю с этого устройства?'))deleteLocalData();};}
+for(const [id,step] of [['prevPage',-1],['nextPage',1]])$(id).onclick=()=>{currentPage+=step;render();$('cards').scrollIntoView({block:'start',behavior:'instant'});};
 $('closeModal').onclick=()=>$('modal').close();
 document.querySelectorAll('#legalNav,#legalBtn').forEach(el=>el.onclick=legalModal);
 function selectPeriod(period){
@@ -84,7 +98,8 @@ function selectPeriod(period){
  $('mainContent').hidden=false;$('templateView').hidden=true;render();
 }
 function reset(){for(const id of ['onlyNew','exact','canMessage'])$(id).checked=false;$('filterQuery').value='';freshFilter=false;render();}
-for(const id of ['filterQuery','period','sort','onlyNew','needsDesign','exact','canMessage','dateBasis','minHours','maxHours'])$(id).addEventListener(['filterQuery','minHours','maxHours'].includes(id)?'input':'change',render);
+let inputRenderTimer;
+for(const id of ['filterQuery','period','sort','onlyNew','needsDesign','exact','canMessage','dateBasis','minHours','maxHours']){const input=['filterQuery','minHours','maxHours'].includes(id);$(id).addEventListener(input?'input':'change',input?()=>{clearTimeout(inputRenderTimer);inputRenderTimer=setTimeout(render,140);}:render);}
 // Period controls only choose a criterion. The explicit update button performs the request.
 document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>selectPeriod(b.dataset.period));
 $('dateBasis').addEventListener('change',()=>{freshFilter=false;snapshotMode=false;render();});
@@ -93,7 +108,7 @@ $('needsDesign').addEventListener('change',()=>{if($('needsDesign').checked)$('e
 $('resetFilters').onclick=reset;$('emptyReset').onclick=reset;
 document.querySelectorAll('[data-view]').forEach(el=>el.onclick=()=>{view=el.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x===el));$('crumb').textContent=el.textContent.trim().replace(/^[^А-Я]+/,'');$('mainContent').hidden=view==='templates';$('templateView').hidden=view!=='templates';if(view==='templates')$('templateText').value=template;if(view==='pipeline'||view==='saved'){$('period').value='';$('dateBasis').value='discovered';reset();}else if(view==='discover'){$('period').value='today';$('dateBasis').value='appeared';$('sort').value='new';$('onlyNew').checked=true;$('needsDesign').checked=true;}render();});
 $('saveTemplate').onclick=()=>{const v=$('templateText').value.trim();if(!v)return toast('Введите текст предложения.');template=v;write('radar.template',v);toast('Шаблон сохранён');};
-$('readAll').onclick=()=>{const ids=new Set(filterGroups(groups(),filters()).map(g=>g.id));groups().forEach(g=>{if(ids.has(g.id))g.seen=true;});persist();render();toast('Показанные сообщества отмечены просмотренными');};
+$('readAll').onclick=()=>{const ids=visibleIds;groups().forEach(g=>{if(ids.has(g.id))g.seen=true;});persist();render();toast('Показанные сообщества отмечены просмотренными');};
 $('cards').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)return;const g=groups().find(x=>x.id===Number(b.closest('[data-id]').dataset.id));if(!g)return;
  if(b.dataset.action==='save'){g.saved=!g.saved;persist();render();return;}
  if(b.dataset.action==='sent'){setStatus(g,'sent');toast('Отмечено как отправленное. Карточка находится в «В работе».');return;}
@@ -352,11 +367,24 @@ function importModal(){modal('Импорт сообществ',`<p>Вставь�
 $('importNav').onclick=importModal;
 $('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:1,mode,exportedAt:new Date().toISOString(),groups:groups()},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`vk-leads-${mode}-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 const launchId=Number(new URLSearchParams(location.search).get('vk_app_id'));if(launchId>0){settings.appId=launchId;mode='live';write('radar.settings',settings);}
+persist();
 render();
-setInterval(()=>{if(!document.hidden&&view!=='templates')render();},60000);
+if(!hostedFeed)setInterval(()=>{if(!document.hidden&&view!=='templates')render();},60000);
 
 let collectorSignature='';
-(hostedFeed?initHostedFeed:initCollector)(s=>{serverConnected=s.connected;if(s.hosted){hostedSnapshotUpdatedAt=Number.isFinite(s.updatedAt)?s.updatedAt:hostedSnapshotUpdatedAt;const ids=new Set(s.groups.map(g=>g.id));live=live.map(g=>g.collectorFeed&&!ids.has(g.id)?{...g,available:false}:g);freshFilter=false;}if(freshFilter&&freshObservationStartedAt){for(const g of s.groups||[]){const appearedAt=g.observation?.appearance?.to;if(g.observation?.appearance?.kind==='candidate'&&Number.isFinite(appearedAt)&&appearedAt>=freshObservationStartedAt)freshSessionIds.add(g.id);}}const signature=JSON.stringify(s.groups);if(signature!==collectorSignature){collectorSignature=signature;live=mergeGroups(live,(s.groups||[]).filter(isVerifiedGroup));mode='live';persist();}render();},()=>live.filter(g=>isVerifiedGroup(g)).map(g=>g.id),{
+(hostedFeed?initHostedFeed:initCollector)(s=>{
+ serverConnected=s.connected;
+ if(s.hosted){
+   hostedSnapshotUpdatedAt=Number.isFinite(s.updatedAt)?s.updatedAt:hostedSnapshotUpdatedAt;
+   const signature=String(s.updatedAt)+':'+s.groups.map(g=>g.id).join(',');
+   if(signature!==collectorSignature){collectorSignature=signature;live=mergeHostedSnapshot(live,s.groups.filter(isVerifiedGroup),progressState);mode='live';freshFilter=false;}
+   render();return;
+ }
+ if(freshFilter&&freshObservationStartedAt)for(const g of s.groups||[]){const at=g.observation?.appearance?.to;if(g.observation?.appearance?.kind==='candidate'&&Number.isFinite(at)&&at>=freshObservationStartedAt)freshSessionIds.add(g.id);}
+ const signature=JSON.stringify(s.groups);
+ if(signature!==collectorSignature){collectorSignature=signature;live=mergeGroups(live,(s.groups||[]).filter(isVerifiedGroup));mode='live';persist();}
+ render();
+},()=>live.filter(g=>isVerifiedGroup(g)).map(g=>g.id),{
  api,isConnected:()=>auth.connected,onConnect:settingsModal,onSearch:searchModal,
  onRegisterSearch:fn=>{hostedSearch=fn;},
  onFreshStart:()=>{freshSessionIds=new Set();freshObservationStartedAt=Date.now();freshFilter=true;mode='live';render();},

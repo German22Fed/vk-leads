@@ -21,9 +21,9 @@ function fixture(){
 test('VK placeholders are stored as frontier probes without publishing fake cards',async()=>{
  const api=async(m,p)=>({groups:p.group_ids.split(',').map(Number).map(id=>({id,name:id===1?'Control':'delete'}))});
  let r=await collectOnce({api,discover:async()=>({id:100}),clock:()=>Date.UTC(2026,9,30,10)});
- assert.equal(r.feed.observation.checked,18000);assert.equal(r.feed.observation.deleted,18000);
+ assert.equal(r.feed.observation.checked,24000);assert.equal(r.feed.observation.deleted,24000);
  assert.equal(r.feed.observation.omitted,0);assert.equal(r.feed.observation.tracked,0);
- assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.frontierProbes,18000);assert.equal(feedOutcome(r.feed).kind,'ready');
+ assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.frontierProbes,24000);assert.equal(feedOutcome(r.feed).kind,'ready');
  // A deleted/unavailable placeholder is never evidence of nonexistence.
  r=await collectOnce({api,previous:r.state,clock:()=>Date.UTC(2026,9,30,10,15)});
  assert.deepEqual(r.feed.groups,[]);assert.equal(r.feed.observation.tracked,0);
@@ -127,7 +127,7 @@ test('Within each time bucket incomplete design is checked before a fully decora
 
 test('Expanded scan covers IDs beyond the former 2000 limit and respects integer ceiling',()=>{
  const ids=scanIds({config:{startId:100}});
- assert.equal(ids.length,18000);assert.equal(ids[0],100);assert.equal(ids.at(-1),18099);
+ assert.equal(ids.length,24000);assert.equal(ids[0],100);assert.equal(ids.at(-1),24099);
  assert.equal(scanIds({config:{startId:2147483640}}).at(-1),2147483647);
 });
 

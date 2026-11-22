@@ -21,9 +21,14 @@ export function hasAdultText(text) {
   // matching fragments in normal business names.
   return /(?:^|[^\p{L}])(?:[пn]\W*[оo0]\W*[рp]\W*[нh]\W*[оo0]|p\W*[оo0]\W*r\W*n|[эe]\W*[рp]\W*[оo0]\W*[тt])(?=$|[^\p{L}])/u.test(value);
 }
+const adultCache=new WeakMap();
 export function isAdultGroup(row) {
-  return row?.contentSafety?.blocked === true ||
-    [row?.name,row?.description,row?.activity,row?.category,row?.status_text].some(hasAdultText);
+  if(!row||typeof row!=='object')return false;
+  const values=[row.name,row.description,row.activity,row.category,row.status_text,row.contentSafety?.blocked];
+  const cached=adultCache.get(row);
+  if(cached&&values.every((v,i)=>v===cached.values[i]))return cached.result;
+  const result=row.contentSafety?.blocked===true||values.slice(0,5).some(hasAdultText);
+  adultCache.set(row,{values,result});return result;
 }
 export function inspectContent(row, items = []) {
   const texts=[];
@@ -157,7 +162,15 @@ export const isLeadFitName = row => {
   return true;
 };
 export const isClientFitGroup = row => isUsableGroup(row) && isClientFitName(row);
-export const isLeadFitGroup = row => isUsableGroup(row) && isLeadFitName(row);
+const leadCache=new WeakMap();
+export const isLeadFitGroup = row => {
+  if(!row||typeof row!=='object')return false;
+  const values=[row.id,row.name,row.deactivated,row.description,row.activity,row.category,row.status_text,row.contentSafety?.blocked];
+  const cached=leadCache.get(row);
+  if(cached&&values.every((v,i)=>v===cached.values[i]))return cached.result;
+  const result=isUsableGroup(row)&&isLeadFitName(row);
+  leadCache.set(row,{values,result});return result;
+};
 export const isIncompleteGroup = row => !!row && !isDeletedMarker(row) && !hasGroupName(row);
 
 export function groupRows(raw, ids, {allowIncomplete=false} = {}) {

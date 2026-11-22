@@ -1,4 +1,4 @@
-import {isAdultGroup, inspectContent} from './vk-data.js?v=11.49';
+import {isAdultGroup, inspectContent} from './vk-data.js?v=11.50';
 export const DEFAULT_TEMPLATE="Здравствуйте!\n\nМеня зовут Герман, я профессиональный дизайнер и руководитель команды GRM Studio.\n\nПредлагаю профессиональное оформление вашего сообщества ВКонтакте, которое поможет выделиться среди конкурентов, повысить доверие клиентов и сделать ваш бизнес более привлекательным.\n\nЧто входит в оформление:\n• Разработка стильной обложки и аватара\n• Создание единого фирменного стиля\n• Дизайн кнопок меню и виджетов\n• Оформление карточек товаров и услуг\n• Разработка визуальных элементов сообщества\n\nСтоимость оформления — всего 2 000 ₽!\n\nСделаю ваше сообщество стильным, современным и привлекательным для потенциальных клиентов.\n\nПримеры моих работ:\nhttps://vk.ru/club240234680\nhttps://vk.ru/club239999236\nhttps://vk.ru/remonthomee\nhttps://vk.ru/club239566795\n\nХотели бы обновить оформление вашего сообщества? Буду рад сотрудничеству!\n\nОПЛАТА ТОЛЬКО ПОСЛЕ ПОЛНОГО ВЫПОЛНЕНИЯ РАБОТЫ!";
 export function parseGroups(text){
  const tokens=text.trim().split(/[\s,;]+/).filter(Boolean), ids=[], invalid=[];
@@ -33,7 +33,7 @@ export function filterGroups(groups,f,now=Date.now()){
  const effectivePeriod=f.view==='discover'&&f.dateBasis==='appeared'&&!f.period?'24h':f.period;
  const window=timeWindow(effectivePeriod,now,f.minHours,f.maxHours);
  const timestamp=g=>f.dateBasis==='created'?creationTimestamp(g,f.allowDemo===true):f.dateBasis==='appeared'?g.observation?.appearance?.to:g.firstSeen;
- return groups.filter(g=>{
+ const result=groups.filter(g=>{
  if(isAdultGroup(g))return false;
  if(f.dateBasis==='id'&&!g.idDiscovery)return false;
  if(f.view==='saved'&&!g.saved)return false;
@@ -48,7 +48,7 @@ export function filterGroups(groups,f,now=Date.now()){
  if(f.dateBasis==='appeared'){const a=g.observation?.appearance,marker=f.period==='today'?a?.from:a?.to;if(!window||!hasCandidateInterval(g)||!Number.isFinite(a?.from)||!Number.isFinite(a?.to)||a.from>a.to||marker<window.from||marker>window.to||g.available!==true)return false;}
  if(f.dateBasis!=='id'&&(f.period||f.dateBasis==='created')){const at=timestamp(g);if(!window||!Number.isFinite(at)||at<window.from||at>window.to)return false;}
  return true;
- }).sort((a,b)=>f.sort==='id'?b.id-a.id:f.sort==='new'?(timestamp(b)||0)-(timestamp(a)||0):score(b).value-score(a).value);}
+ });return f.noSort?result:result.sort((a,b)=>f.sort==='id'?b.id-a.id:f.sort==='new'?(timestamp(b)||0)-(timestamp(a)||0):score(b).value-score(a).value);}
 export function searchPlan(text,limit){
  const queries=[...new Set(text.split(/[\n;,]+/).map(s=>s.trim()).filter(Boolean))];
  if(!queries.length||queries.length>10)throw Error('Укажите от 1 до 10 тематик через запятую.');

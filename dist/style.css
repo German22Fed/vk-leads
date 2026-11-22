@@ -30,3 +30,5 @@
 
 .cardactions{flex-wrap:wrap}.cardactions .messagebtn{flex:1 1 100%}.cardactions .details{flex:1}
 
+.feedPager{display:flex;gap:16px;align-items:center;justify-content:center;margin:24px 0;flex-wrap:wrap}.feedPager[hidden]{display:none}.feedPager button:disabled{opacity:.45;cursor:default}
+
