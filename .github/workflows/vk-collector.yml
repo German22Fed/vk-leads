@@ -51,6 +51,8 @@ jobs:
         with:
           path: dist
           retention-days: 1
+      - name: Wait for Pages artifact visibility
+        run: node server/wait-pages-artifact.mjs
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
