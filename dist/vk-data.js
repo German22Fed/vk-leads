@@ -143,9 +143,15 @@ const noiseMatches=(name,term)=>{
     new RegExp(`(?:^|[^\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}`,'u');
   noisePatterns.set(term,regex);return regex.test(name);
 };
+// Reject personal diaries and gift-bait names before both name and description
+// matching, so copied commercial descriptions cannot undo this exclusion.
+const excludedLeadName = name => /^(?:наша\s+свадьба|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\s+свадьба)|психологам\s+и\s+клиентам\s+для/u.test(name)||
+  /(?:тебя|тебе|твой|для тебя).*(?:подарок|сюрприз|бонус|талон)|(?:подарок|сюрприз|бонус).*(?:ждет|ждёт|приберегли|спешит)|(?:бонус|плюс).{0,25}(?:к празднику|перед праздником)|(?:перед праздником).*(?:бонус|подарок)|завтра\s+проверь\s+свой\s+подарок|затеял[аи]?\s+ремонт/u.test(name)||
+  ['красота и здоровье','все о красоте','всё о красоте'].includes(name.trim());
 export const isLeadFitName = row => {
   if (!isClientFitName(row) || isAdultGroup(row)) return false;
   const name = cleanGroupName(row).toLowerCase();
+  if(excludedLeadName(name))return false;
   if(/^(?:наша\s+свадьба|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\s+свадьба)|психологам\s+и\s+клиентам\s+для/u.test(name))return false;
   if(/^(?:сладкая\s+)?(?:шоколадка|зефирка|вареник|пельмень|капкейк|пряник)$/u.test(name))return false;
   if(/(?:тебя|тебе|твой|для тебя).*(?:подарок|сюрприз)|(?:подарок|сюрприз).*(?:ждет|ждёт|приберегли)|выживание\s+\d+\s+дней|школьный\s+медиа\s*центр|^вкр\s*\d/u.test(name))return false;
@@ -180,6 +186,7 @@ export const isLeadFitName = row => {
 export const isClientFitGroup = row => isUsableGroup(row) && isClientFitName(row);
 export function businessDescriptionMatch(row){
   const name=cleanGroupName(row).toLowerCase();
+  if(excludedLeadName(name))return false;
   if(!isClientFitName(row)||isAdultGroup(row)||name.length>100||/^(мама|папа|брат|сестра|семья|тест|test|привет)$/u.test(name)||leadNoise.some(term=>noiseMatches(name,term)))return false;
   const letters=name.replace(/[^a-zа-яё]/gu,'');
   if(letters.length<3||!/[аеёиоуыэюяaeiouy]/u.test(letters)||/(.)\1{3}/u.test(letters))return false;
@@ -211,4 +218,3 @@ export function groupRows(raw, ids, {allowIncomplete=false} = {}) {
   }
   return rows;
 }
-

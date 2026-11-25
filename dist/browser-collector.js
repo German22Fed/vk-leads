@@ -1,8 +1,8 @@
-import {Collector, initialState} from './collector-engine.js?v=11.51.1';
+import {Collector, initialState} from './collector-engine.js?v=11.51.2';
 import {parseGroups,normalizeGroup} from './core.js';
-import {groupRows,isClientFitGroup} from './vk-data.js?v=11.51.1';
-import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.51.1';
-import {refreshObservation} from './period-search.js?v=11.51.1';
+import {groupRows,isClientFitGroup} from './vk-data.js?v=11.51.2';
+import {findIdFrontier,collectRecentIds} from './id-discovery.js?v=11.51.2';
+import {refreshObservation} from './period-search.js?v=11.51.2';
 const $=id=>document.getElementById(id);
 const when=n=>n?new Date(n).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+' МСК':'ещё не было';
 export const AUTO_QUERIES=['ресницы','брови','маникюр','салон красоты','парикмахерская','психолог','психология','мебель на заказ','кухни на заказ','диваны','ремонт квартир','магазин','клиника','стоматология','кафе','фотограф','студия'];
@@ -219,4 +219,3 @@ export async function initBrowserCollector({api,isConnected,onConnect,onUpdate,o
   chooseLeadPeriod('today');
   render();
 }
-

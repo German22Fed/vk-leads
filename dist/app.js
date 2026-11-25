@@ -1,12 +1,12 @@
-import {currentSnapshotRows,pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot} from './feed-performance.js?v=11.51.1';
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.51.1';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.51.1';
-import {getBridge} from './vk-start.js?v=11.51.1';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.51.1';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.51.1';
+import {currentSnapshotRows,pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot} from './feed-performance.js?v=11.51.2';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.51.2';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.51.2';
+import {getBridge} from './vk-start.js?v=11.51.2';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.51.2';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.51.2';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.51.1';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.51.1';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.51.2';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.51.2';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -395,4 +395,3 @@ let collectorSignature='';
  onShowCandidates:(period='')=>selectPeriod(period),
  onReset:()=>{live=live.map(g=>{if(g.source!=='Наблюдение Mini App')return g;const {observation,...rest}=g;return rest;});persist();render();}
 });
-

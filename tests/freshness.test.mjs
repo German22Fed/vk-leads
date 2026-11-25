@@ -15,6 +15,14 @@ test('Community-owned photo is historical evidence; user-owned/repost dates are 
  assert.equal(verdict({group:g,appearance:{kind:'frontier_candidate',from:now-hour,to:now}},now),'older');
  assert.equal(olderEvidence({},{from:now-hour},null,now),false);
 });
+test('Gift-bait pages and personal renovation diaries cannot pass through commercial descriptions',()=>{
+ for(const name of ['Завтра тебя ждёт бонус к празднику','Завтра проверь свой подарок','Перед праздником — приятный бонус','Твой личный талон на праздник','Бонус спешит к твоему празднику','На твоём счёте уже плюс к празднику','Саша затеяла ремонт','Красота и здоровье','Наша свадьба']){
+  assert.equal(isLeadFitGroup({id:100,name,description:'Ремонт. Услуги, цены и прайс.'}),false,name);
+ }
+ for(const name of ['Организация праздников Улыбка','Магазин подарков Бонус','Ремонт квартир под ключ','Делаю ремонт квартир']){
+  assert.equal(isLeadFitGroup({id:100,name}),true,name);
+ }
+});
 test('Incomplete tail of a wall cannot pass freshness verification',async()=>{
  const c=new Collector({clock:()=>now,storage:{},api:async(m,p)=>p.offset?{count:20,items:[]}:{count:20,items:[{owner_id:-100,date:now/1000}]}});
  const rec={id:100,group:{}};await c.inspectWall(rec);assert.ok(rec.wallError);assert.equal(rec.wallCheckedAt,undefined);
@@ -53,4 +61,3 @@ test('Business niches and commercial descriptions broaden leads without acceptin
  for(const name of ['вареник','Сладкая шоколадка','Сладкая зефирка'])assert.equal(isLeadFitGroup({id:100,name}),false,name);
  for(const name of ['19.03.2003 Свадьба','Наша свадьба','Психологам и клиентам для разрядки','Красота и здоровье'])assert.equal(isLeadFitGroup({id:100,name}),false,name);
 });
-

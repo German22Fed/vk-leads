@@ -1,5 +1,5 @@
-import {ownedPhotoDate,olderEvidence,startingBusiness,intervalInside} from './freshness.js?v=11.51.1';
-import {isAdultGroup, inspectContent} from './vk-data.js?v=11.51.1';
+import {ownedPhotoDate,olderEvidence,startingBusiness,intervalInside} from './freshness.js?v=11.51.2';
+import {isAdultGroup, inspectContent} from './vk-data.js?v=11.51.2';
 export const DEFAULT_TEMPLATE="Здравствуйте!\n\nМеня зовут Герман, я профессиональный дизайнер и руководитель команды GRM Studio.\n\nПредлагаю профессиональное оформление вашего сообщества ВКонтакте, которое поможет выделиться среди конкурентов, повысить доверие клиентов и сделать ваш бизнес более привлекательным.\n\nЧто входит в оформление:\n• Разработка стильной обложки и аватара\n• Создание единого фирменного стиля\n• Дизайн кнопок меню и виджетов\n• Оформление карточек товаров и услуг\n• Разработка визуальных элементов сообщества\n\nСтоимость оформления — всего 2 000 ₽!\n\nСделаю ваше сообщество стильным, современным и привлекательным для потенциальных клиентов.\n\nПримеры моих работ:\nhttps://vk.ru/club240234680\nhttps://vk.ru/club239999236\nhttps://vk.ru/remonthomee\nhttps://vk.ru/club239566795\n\nХотели бы обновить оформление вашего сообщества? Буду рад сотрудничеству!\n\nОПЛАТА ТОЛЬКО ПОСЛЕ ПОЛНОГО ВЫПОЛНЕНИЯ РАБОТЫ!";
 export function parseGroups(text){
  const tokens=text.trim().split(/[\s,;]+/).filter(Boolean), ids=[], invalid=[];
@@ -63,4 +63,3 @@ export function searchPlan(text,limit){
 export function messageFor(g,template){return template.replaceAll('{name}',g.name);}
 export function dialogUrl(g,text){if(!Number.isSafeInteger(g.id)||g.id<=0)throw Error('Некорректный ID');return `https://vk.ru/im?sel=-${g.id}&msg=${encodeURIComponent(text)}`;}
 export function normalizeGroup(g,wall){return {id:g.id,name:g.name,oldestOwnedPhotoAt:ownedPhotoDate(g.crop_photo?.photo,g.id),screenName:g.screen_name,city:g.city?.title||'Город не указан',category:g.activity||'Сообщество',members:g.members_count??null,posts:wall?.count??null,avatar:g.has_photo===undefined?null:!!g.has_photo,photo:g.photo_200||'',cover:g.cover?.enabled===undefined?null:!!g.cover.enabled,coverUrl:g.cover?.images?.at(-1)?.url||'',canMessage:g.can_message===undefined?null:!!g.can_message,description:g.description||'',latestPost:wall?.items?.filter(p=>!p.is_pinned).sort((a,b)=>b.date-a.date)[0]?.date??null,...(wall?{contentSafety:inspectContent(g,wall.items||[])}:{}),source:'VK API',wallUnavailable:!wall};}
-

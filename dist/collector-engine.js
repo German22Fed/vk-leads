@@ -1,6 +1,6 @@
 import { normalizeGroup } from './core.js';
 import {ownedPhotoDate,olderEvidence,FRESHNESS_VERSION} from './freshness.js';
-import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup, inspectContent } from './vk-data.js?v=11.51.1';
+import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup, inspectContent } from './vk-data.js?v=11.51.2';
 
 const DAY = 86400000;
 export const moscowDay = at => new Date(at + 10800000).toISOString().slice(0, 10);
@@ -213,4 +213,3 @@ export class Collector {
       evidence:{confirmedCreationDates:0,candidatesToday:groups.filter(g=>g.available&&g.observation.verdict==='candidate_today').length,older:groups.filter(g=>g.observation.verdict==='older').length,controlContradictions:controls.filter(c=>c.result==='contradiction').length}};
   }
 }
-
