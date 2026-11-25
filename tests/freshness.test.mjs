@@ -51,5 +51,6 @@ test('Business niches and commercial descriptions broaden leads without acceptin
  assert.equal(isLeadFitGroup({id:100,name:'Анна Иванова',description:'Люблю смотреть фото маникюра'}),false);
  assert.equal(isLeadFitGroup({id:100,name:'Дроздова дома',description:'Показываю свои будни, истории про ремонт'}),false);
  for(const name of ['вареник','Сладкая шоколадка','Сладкая зефирка'])assert.equal(isLeadFitGroup({id:100,name}),false,name);
+ for(const name of ['19.03.2003 Свадьба','Наша свадьба','Психологам и клиентам для разрядки','Красота и здоровье'])assert.equal(isLeadFitGroup({id:100,name}),false,name);
 });
 

@@ -1,8 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot} from '../dist/feed-performance.js';
+import {pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot,currentSnapshotRows} from '../dist/feed-performance.js';
 import {isAdultGroup,isLeadFitGroup} from '../dist/vk-data.js';
 const row=id=>({id,name:'Мебель на заказ',status:'new',collectorFeed:true,available:true,firstSeen:10});
+test('Old cached cards cannot enter discover before or outside the authoritative snapshot',()=>{
+ const old={...row(242923551),saved:true},fresh=row(243711777),now=1000000000;
+ assert.deepEqual(currentSnapshotRows([old,fresh],new Set(),0,now),[]);
+ assert.deepEqual(currentSnapshotRows([old,fresh],new Set([fresh.id]),now,now),[fresh]);
+ assert.deepEqual(currentSnapshotRows([fresh],new Set([fresh.id]),now-7*3600000,now),[]);
+ assert.equal(personalArchive([old]).length,1,'Personal history remains available separately');
+});
 test('Pagination reaches every result exactly once with bounded DOM work',()=>{
  const rows=Array.from({length:10001},(_,i)=>row(i+1)),ids=[];
  for(let n=1;n<=pageSlice(rows).pages;n++){const p=pageSlice(rows,n);assert.ok(p.rows.length<=36);ids.push(...p.rows.map(g=>g.id));}

@@ -1,4 +1,8 @@
 export const PAGE_SIZE = 36;
+export function currentSnapshotRows(rows,ids,updatedAt,now=Date.now()) {
+  if(!Number.isFinite(updatedAt)||updatedAt<=0||updatedAt>now+60000||now-updatedAt>6*3600000)return [];
+  return rows.filter(g=>ids.has(g.id)&&g.collectorFeed===true&&g.available===true);
+}
 export function pageSlice(rows, requested = 1) {
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const page = Math.max(1, Math.min(pages, Number(requested) || 1));

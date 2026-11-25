@@ -1,12 +1,12 @@
-import {pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot} from './feed-performance.js?v=11.51';
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.51';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.51';
-import {getBridge} from './vk-start.js?v=11.51';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.51';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.51';
+import {currentSnapshotRows,pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot} from './feed-performance.js?v=11.51.1';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.51.1';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.51.1';
+import {getBridge} from './vk-start.js?v=11.51.1';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.51.1';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.51.1';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.51';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.51';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.51.1';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.51.1';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -27,13 +27,13 @@ const storedProgress=read('radar.leadState',{});
 const progressState=storedProgress&&typeof storedProgress==='object'&&!Array.isArray(storedProgress)?storedProgress:{};rememberProgress(progressState,live);live=personalArchive(live);
 const demo=[];
 let currentPage=1,pageCriteria='',visibleIds=new Set(),lastCardsHTML='';
-let serverConnected=false,hostedSnapshotUpdatedAt=0;
+let serverConnected=false,hostedSnapshotUpdatedAt=0;let hostedSnapshotIds=new Set();
 function restoreViewport(viewport){
  const apply=()=>{try{if(Math.abs(window.scrollX-viewport.x)>1||Math.abs(window.scrollY-viewport.y)>1)window.scrollTo({left:viewport.x,top:viewport.y,behavior:'auto'});}catch{};if(viewport.focusId){const el=document.getElementById(viewport.focusId);if(el&&el!==document.activeElement)try{el.focus({preventScroll:true});}catch{}}};
  apply();if(typeof requestAnimationFrame==='function')requestAnimationFrame(apply);
 }
 const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?
-  live.filter(g=>g.collectorFeed===true&&g.available===true&&isLeadFitGroup(g)&&
+  currentSnapshotRows(live,hostedSnapshotIds,hostedSnapshotUpdatedAt).filter(g=>isLeadFitGroup(g)&&
     Number.isFinite(g.verifiedAt)&&Number.isFinite(g.observation?.wallCheckedAt)&&
     !g.observation.wallError&&(!hostedSnapshotUpdatedAt||Date.now()-hostedSnapshotUpdatedAt<=6*3600000)):
   live;
@@ -375,6 +375,7 @@ let collectorSignature='';
 (hostedFeed?initHostedFeed:initCollector)(s=>{
  serverConnected=s.connected;
  if(s.hosted){
+   hostedSnapshotIds=new Set(s.groups.map(g=>g.id));
    hostedSnapshotUpdatedAt=Number.isFinite(s.updatedAt)?s.updatedAt:hostedSnapshotUpdatedAt;
    const signature=String(s.updatedAt)+':'+s.groups.map(g=>g.id).join(',');
    if(signature!==collectorSignature){collectorSignature=signature;live=mergeHostedSnapshot(live,s.groups.filter(isVerifiedGroup),progressState);mode='live';freshFilter=false;}

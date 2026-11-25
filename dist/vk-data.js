@@ -146,6 +146,7 @@ const noiseMatches=(name,term)=>{
 export const isLeadFitName = row => {
   if (!isClientFitName(row) || isAdultGroup(row)) return false;
   const name = cleanGroupName(row).toLowerCase();
+  if(/^(?:наша\s+свадьба|\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\s+свадьба)|психологам\s+и\s+клиентам\s+для/u.test(name))return false;
   if(/^(?:сладкая\s+)?(?:шоколадка|зефирка|вареник|пельмень|капкейк|пряник)$/u.test(name))return false;
   if(/(?:тебя|тебе|твой|для тебя).*(?:подарок|сюрприз)|(?:подарок|сюрприз).*(?:ждет|ждёт|приберегли)|выживание\s+\d+\s+дней|школьный\s+медиа\s*центр|^вкр\s*\d/u.test(name))return false;
   const commercialMusic=/музыкальн[а-я]*\s+школ|школ[а-я]*\s+музык/u.test(name);
@@ -159,7 +160,7 @@ export const isLeadFitName = row => {
   if(/частн[а-я]*\s+детский сад/u.test(name))exceptions.add('детский сад');
   if (leadNoise.some(term => !exceptions.has(term) && noiseMatches(name,term))) return false;
   const compactName = name.replace(/[«»"'“”]/g, '').replace(/\s+/g, ' ').trim();
-  if (genericLeadNames.has(compactName)) return false;
+  if (genericLeadNames.has(compactName)||['красота и здоровье','все о красоте','всё о красоте'].includes(compactName)) return false;
   // VK's frontier can return concatenated placeholder-like names. Keep
   // genuine one-word brands and short service names, but reject long runs of
   // letters with no separators (for example магазинпродажиинструментов).
