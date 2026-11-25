@@ -36,6 +36,11 @@ jobs:
           VK_SERVICE_TOKEN: ${{ secrets.VK_SERVICE_TOKEN }}
         run: |
           node server/run-continuous.mjs
+          # Revisit the recorded frontier within this job instead of relying
+          # entirely on the next (potentially delayed) scheduled invocation.
+          # Each successful pass persists its checkpoint; the second pass
+          # reuses recent wall checks and verifies newly appeared candidates.
+          node server/run-continuous.mjs
       - name: Save checkpoint and public feed
         run: |
           git config user.name 'VK Leads Collector'
