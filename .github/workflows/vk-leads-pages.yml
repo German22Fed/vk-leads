@@ -15,7 +15,9 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  # Only the latest UI release should deploy; an obsolete waiting run must
+  # not hold every subsequent release in the concurrency queue.
+  cancel-in-progress: true
 
 jobs:
   deploy:
