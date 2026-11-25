@@ -49,5 +49,7 @@ test('Business niches and commercial descriptions broaden leads without acceptin
  for(const name of ['Мама','Ozon','Порно маникюр','AI Creator','Книжный дневник','asdfghjk'])assert.equal(isLeadFitGroup({id:100,name}),false,name);
  assert.equal(isLeadFitGroup({id:100,name:'Мама',description:'Маникюр на заказ'}),false);
  assert.equal(isLeadFitGroup({id:100,name:'Анна Иванова',description:'Люблю смотреть фото маникюра'}),false);
+ assert.equal(isLeadFitGroup({id:100,name:'Дроздова дома',description:'Показываю свои будни, истории про ремонт'}),false);
+ for(const name of ['вареник','Сладкая шоколадка','Сладкая зефирка'])assert.equal(isLeadFitGroup({id:100,name}),false,name);
 });
 

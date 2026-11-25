@@ -146,6 +146,7 @@ const noiseMatches=(name,term)=>{
 export const isLeadFitName = row => {
   if (!isClientFitName(row) || isAdultGroup(row)) return false;
   const name = cleanGroupName(row).toLowerCase();
+  if(/^(?:сладкая\s+)?(?:шоколадка|зефирка|вареник|пельмень|капкейк|пряник)$/u.test(name))return false;
   if(/(?:тебя|тебе|твой|для тебя).*(?:подарок|сюрприз)|(?:подарок|сюрприз).*(?:ждет|ждёт|приберегли)|выживание\s+\d+\s+дней|школьный\s+медиа\s*центр|^вкр\s*\d/u.test(name))return false;
   const commercialMusic=/музыкальн[а-я]*\s+школ|школ[а-я]*\s+музык/u.test(name);
   const petService=/груминг|зоосалон|ветеринар|передержк|зоомагазин/u.test(name);
@@ -185,7 +186,7 @@ export function businessDescriptionMatch(row){
   // A brand/name alone is insufficient. Require a concrete service and an
   // explicit commercial offer, not simply VK's broad activity category.
   return /маникюр|педикюр|ресниц|бров|парикмахер|косметолог|психолог|репетитор|мебел|кухни на заказ|клининг|торты на заказ|ремонт|пошив|груминг|фотосесс|флорист/u.test(description)&&
-    /запис[ьи]|записаться|заказ|стоимость|прайс|цены|руб(?:\W|$)|₽|оказыва[ею]|услуги|доставка/u.test(description);
+    /(?:^|[^\p{L}])(?:запис[ьи]|записаться|заказ|стоимость|прайс|цены|руб(?:\W|$)|₽|оказыва[ею]|услуги|доставка)/u.test(description);
 }
 const leadCache=new WeakMap();
 export const isLeadFitGroup = row => {
