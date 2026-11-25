@@ -1,12 +1,12 @@
-import {pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot} from './feed-performance.js?v=11.50';
-import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.50';
-import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.50';
-import {getBridge} from './vk-start.js?v=11.50';
-import {initCollector,collectorRequest} from './collector-ui.js?v=11.50';
-import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.50';
+import {pageSlice,rememberProgress,personalArchive,mergeHostedSnapshot} from './feed-performance.js?v=11.51';
+import {VkConnection,errorText,deadline,isVkHost} from './vk-connection.js?v=11.51';
+import {prepareConversation,copyPreparedText} from './message-flow.js?v=11.51';
+import {getBridge} from './vk-start.js?v=11.51';
+import {initCollector,collectorRequest} from './collector-ui.js?v=11.51';
+import {initHostedFeed,syncPeriodButtons} from './hosted-feed.js?v=11.51';
 const hostedFeed=location.hostname==='german22fed.github.io';
-import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.50';
-import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.50';
+import {DEFAULT_TEMPLATE,parseGroups,score,mergeGroups,filterGroups,messageFor,dialogUrl,normalizeGroup,timeWindow,creationTimestamp,searchPlan} from './core.js?v=11.51';
+import {groupRows,isUsableGroup,isClientFitGroup,isLeadFitGroup} from './vk-data.js?v=11.51';
 const CONFIGURED_APP_ID=54829568;
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImage=s=>{try{return new URL(s).protocol==='https:'?esc(s):'';}catch{return '';}};
@@ -39,7 +39,7 @@ const groups=()=>mode==='demo'?demo:hostedFeed&&view==='discover'?
   live;
 const persist=()=>{if(mode==='demo')return;rememberProgress(progressState,live);if(write('radar.leadState',progressState))write('radar.live',personalArchive(live));};
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),5000);}
-function filters(){return {view,query:$('filterQuery').value.trim(),onlyNew:$('onlyNew').checked,needsDesign:$('needsDesign').checked,exact:$('exact').checked,canMessage:$('canMessage').checked,period:$('period').value,dateBasis:$('dateBasis').value,minHours:$('minHours').value,maxHours:$('maxHours').value,allowDemo:mode==='demo',sort:$('sort').value};}
+function filters(){return {view,query:$('filterQuery').value.trim(),onlyNew:$('onlyNew').checked,needsDesign:$('needsDesign').checked,startingOnly:$('startingOnly').checked,exact:$('exact').checked,canMessage:$('canMessage').checked,period:$('period').value,dateBasis:$('dateBasis').value,minHours:$('minHours').value,maxHours:$('maxHours').value,allowDemo:mode==='demo',sort:$('sort').value};}
 const statuses={new:'Не обработано',opened:'Диалог открыт',sent:'Предложение отправлено',replied:'Ответили',client:'Клиент',hidden:'Не подходит'};
 function render(){
  const viewport={x:window.scrollX,y:window.scrollY,focusId:document.activeElement?.id||''};
@@ -54,7 +54,7 @@ function render(){
  $('period').disabled=byId;
  document.querySelectorAll('[data-period]').forEach(b=>{b.disabled=false;});
  const invalid=!byId&&timeWindow(f.period,Date.now(),f.minHours,f.maxHours)===null;
- document.querySelector('.recentIntro').textContent=byId?'Свежий снимок VK без подтверждённой даты создания.':'Выберите, когда сообщество появилось в наблюдении. «Сегодня» — с 00:00 по Москве.';
+ document.querySelector('.recentIntro').textContent=byId?'Свежий снимок VK без подтверждённой даты создания.':'Интервал появления должен целиком попадать в выбранный период. «Сегодня» — с 00:00 по Москве. Это оценка по ID, не дата регистрации.';
  $('rangeError').hidden=!invalid;
  syncPeriodButtons(f.period);
  const periodCounts=new Map();
@@ -99,7 +99,7 @@ function selectPeriod(period){
 }
 function reset(){for(const id of ['onlyNew','exact','canMessage'])$(id).checked=false;$('filterQuery').value='';freshFilter=false;render();}
 let inputRenderTimer;
-for(const id of ['filterQuery','period','sort','onlyNew','needsDesign','exact','canMessage','dateBasis','minHours','maxHours']){const input=['filterQuery','minHours','maxHours'].includes(id);$(id).addEventListener(input?'input':'change',input?()=>{clearTimeout(inputRenderTimer);inputRenderTimer=setTimeout(render,140);}:render);}
+for(const id of ['filterQuery','period','sort','onlyNew','needsDesign','startingOnly','exact','canMessage','dateBasis','minHours','maxHours']){const input=['filterQuery','minHours','maxHours'].includes(id);$(id).addEventListener(input?'input':'change',input?()=>{clearTimeout(inputRenderTimer);inputRenderTimer=setTimeout(render,140);}:render);}
 // Period controls only choose a criterion. The explicit update button performs the request.
 document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>selectPeriod(b.dataset.period));
 $('dateBasis').addEventListener('change',()=>{freshFilter=false;snapshotMode=false;render();});

@@ -101,7 +101,7 @@ test('Hourly and 1-3h candidates precede a large morning backlog; fresh checks a
  const chosen=selectRechecks(records,now);assert.equal(chosen.length,402);
  assert.deepEqual(chosen.slice(0,2).map(r=>r.id),[501,502]);
  records[501].group.verifiedAt=records[501].wallCheckedAt=now;
- records[501].group.contentSafety={version:1,blocked:false};
+ records[501].group.contentSafety={version:1,blocked:false};records[501].group.freshnessCheckedVersion=1;
  assert.equal(selectRechecks(records,now).some(r=>r.id===501),false);
 });
 

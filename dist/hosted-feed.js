@@ -1,5 +1,6 @@
-import {isLeadFitGroup} from './vk-data.js?v=11.50';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.50';
+import {olderEvidence} from './freshness.js?v=11.51';
+import {isLeadFitGroup} from './vk-data.js?v=11.51';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.51';
 export function syncPeriodButtons(period,root=document){
   root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
     const active=(b.dataset.cloudPeriod??b.dataset.period)===period;
@@ -19,7 +20,7 @@ export function validateFeed(data,now=Date.now()){
        !hasCandidateInterval(g)||!Number.isFinite(a.from)||!Number.isFinite(a.to)||a.from>a.to||a.to>now||
        !Number.isFinite(g.verifiedAt)||now-g.verifiedAt>maxAge||g.verifiedAt>now||
        !Number.isFinite(g.observation?.wallCheckedAt)||now-g.observation.wallCheckedAt>maxAge||g.observation.wallCheckedAt>now||g.observation.wallError||
-       (Number.isFinite(g.observation.oldestObservedPost)&&g.observation.oldestObservedPost<a.from)||
+       olderEvidence(g,a,g.observation.oldestObservedPost,now)||
        !Number.isFinite(g.members)||g.members>500||g.wallUnavailable!==false)return false;
     seen.add(g.id);return true;
   })};
@@ -40,7 +41,7 @@ export function coverageText(data){
   const n=c.counts;
   return `Охват последнего прохода: ${c.checkedThisPass} ID (${c.scanStart}–${c.scanEnd}). Это часть VK, не все новые сообщества. `+
     (c.gapSeconds!==null?`Пауза между проходами: ${Math.round(c.gapSeconds/60)} мин. `:'')+
-    `В сохранённой базе: ${c.tracked}. Готовы к показу: ${n.published}; ждут проверки: ${n.pendingVerification}; исключены по контенту: ${n.adult||0}; не подходят по тематике: ${n.irrelevant}; не подходят по аудитории: ${n.audience}; старые посты: ${n.oldPosts}; недоступны/ошибка стены: ${n.unavailable+n.wallError+n.withdrawn}; без интервала: ${n.withoutInterval}; вне последних суток: ${n.olderInterval||0}. `+
+    `В сохранённой базе: ${c.tracked}. Готовы к показу: ${n.published}; ждут проверки: ${n.pendingVerification}; исключены по контенту: ${n.adult||0}; не подходят по тематике: ${n.irrelevant}; не подходят по аудитории: ${n.audience}; старые материалы: ${n.oldPosts}; недоступны/ошибка стены: ${n.unavailable+n.wallError+n.withdrawn}; без интервала: ${n.withoutInterval}; вне последних суток: ${n.olderInterval||0}. `+
     `Пересекают границы периода и не включены в точную подборку: последний час — ${c.periods['1h'].uncertainBoundary}, 1–3 часа — ${c.periods['1-3h'].uncertainBoundary}. `+
     (c.retentionDropped?`Удалено из истории из-за ограничения хранения: ${c.retentionDropped}. `:'')+
     'Количество карточек не равно числу созданных в VK групп. Интервал наблюдения не подтверждает регистрацию.';

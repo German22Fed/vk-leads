@@ -74,6 +74,13 @@ export const isClientFitName = row => {
 // local businesses, experts and personal brands while keeping technical,
 // gaming and meaningless names out of the sales queue.
 const leadMarkers = [
+  'реснич','ресенниц','лешмейкер','лэшмейкер','lash','nails','ногт','нейл','шугаринг','колорист','кератин','ботокс волос','афрокос','косоплет','трихолог','брадобрей',
+  'мыловар','свечи','аромасвеч','керамик','гончар','ювелир','бижутер','handmade','hand made','хендмейд','хэндмейд','швея','вышивк','подарочные наборы',
+  'автокондиционер','автостекл','автозвук','кузовной','диагностика авто','ремонт обуви','ремонт часов','ремонт телефонов','чистка ковров','дезинсекц','дезинфекц','прачеч','заточка',
+  'садовник','саженц','рассад','питомник растений','теплиц','газон','брусчат','тротуарн','земляные работы','спецтехник','вывоз мусора','алмазное бурение',
+  'психиатр','нейропсихолог','арт-терап','семейный психолог','медиатор','страхован','оценщик','кадастр','геодез','сертификац','таможенн','логист','сметчик','архитектор',
+  'печенье','пряник','зефир','чизкейк','бенто','капкейк','шоколад','пастила','полуфабрикат','пельмен','вареник','рыбный магазин','сухофрукт','орехи','мед на заказ',
+  'студия растяжки','стретчинг','аквааэробик','студия вокала','уроки гитары','уроки фортепиано','уроки рисования','художественная студия','школа вокала','школа танцев',
   // Additional specific services and common English business names.
   'груминг','зоосалон','зоомагазин','передержк','кинолог','автоэлектрик','автоподбор','детейлинг','детейлинг-центр','эвакуатор','автошкол','тонировк','полировк','грузоперевоз','грузчик','переезд','ателье','пошив','вязание на заказ','гравировк','типограф','полиграф','флорист','букет','шарик','аэродизайн','баня','сауна','глэмпинг','кемпинг','печи','забор','ворота','роллет','жалюзи','бурение','скважин','септик','каменщик','плиточник','муж на час','печать','оцифровк','реставрац','перетяжк','обивк','подиатр','подолог','нутрициолог','остеопат','йога','студия вокала','школа музыки','музыкальная школа','beauty','nail','lashes','brow','barbershop','salon','bakery','florist','furniture','cleaning','detailing','photography','tattoo',
   // Beauty, lashes, nails and body care
@@ -142,7 +149,14 @@ export const isLeadFitName = row => {
   if(/(?:тебя|тебе|твой|для тебя).*(?:подарок|сюрприз)|(?:подарок|сюрприз).*(?:ждет|ждёт|приберегли)|выживание\s+\d+\s+дней|школьный\s+медиа\s*центр|^вкр\s*\d/u.test(name))return false;
   const commercialMusic=/музыкальн[а-я]*\s+школ|школ[а-я]*\s+музык/u.test(name);
   const petService=/груминг|зоосалон|ветеринар|передержк|зоомагазин/u.test(name);
-  if (leadNoise.some(term => !(term==='музык'&&commercialMusic) && !(term==='кошк'&&petService) && noiseMatches(name,term))) return false;
+  const exceptions=new Set();
+  if(commercialMusic)exceptions.add('музык');
+  if(petService){exceptions.add('кошк');exceptions.add('птиц');}
+  if(/книжн[а-я]*\s+(?:магазин|лавк)|магазин\s+книг/u.test(name))exceptions.add('книжн');
+  if(/нейропсихолог|нейрологопед/u.test(name))exceptions.add('нейро');
+  if(/магазин.{0,30}игруш|игруш[а-я]*.{0,30}(?:магазин|на заказ)/u.test(name))exceptions.add('игр');
+  if(/частн[а-я]*\s+детский сад/u.test(name))exceptions.add('детский сад');
+  if (leadNoise.some(term => !exceptions.has(term) && noiseMatches(name,term))) return false;
   const compactName = name.replace(/[«»"'“”]/g, '').replace(/\s+/g, ' ').trim();
   if (genericLeadNames.has(compactName)) return false;
   // VK's frontier can return concatenated placeholder-like names. Keep
@@ -162,13 +176,24 @@ export const isLeadFitName = row => {
   return true;
 };
 export const isClientFitGroup = row => isUsableGroup(row) && isClientFitName(row);
+export function businessDescriptionMatch(row){
+  const name=cleanGroupName(row).toLowerCase();
+  if(!isClientFitName(row)||isAdultGroup(row)||name.length>100||/^(мама|папа|брат|сестра|семья|тест|test|привет)$/u.test(name)||leadNoise.some(term=>noiseMatches(name,term)))return false;
+  const letters=name.replace(/[^a-zа-яё]/gu,'');
+  if(letters.length<3||!/[аеёиоуыэюяaeiouy]/u.test(letters)||/(.)\1{3}/u.test(letters))return false;
+  const description=String(row.description||'').toLowerCase().slice(0,5000);
+  // A brand/name alone is insufficient. Require a concrete service and an
+  // explicit commercial offer, not simply VK's broad activity category.
+  return /маникюр|педикюр|ресниц|бров|парикмахер|косметолог|психолог|репетитор|мебел|кухни на заказ|клининг|торты на заказ|ремонт|пошив|груминг|фотосесс|флорист/u.test(description)&&
+    /запис[ьи]|записаться|заказ|стоимость|прайс|цены|руб(?:\W|$)|₽|оказыва[ею]|услуги|доставка/u.test(description);
+}
 const leadCache=new WeakMap();
 export const isLeadFitGroup = row => {
   if(!row||typeof row!=='object')return false;
   const values=[row.id,row.name,row.deactivated,row.description,row.activity,row.category,row.status_text,row.contentSafety?.blocked];
   const cached=leadCache.get(row);
   if(cached&&values.every((v,i)=>v===cached.values[i]))return cached.result;
-  const result=isUsableGroup(row)&&isLeadFitName(row);
+  const result=isUsableGroup(row)&&(isLeadFitName(row)||businessDescriptionMatch(row));
   leadCache.set(row,{values,result});return result;
 };
 export const isIncompleteGroup = row => !!row && !isDeletedMarker(row) && !hasGroupName(row);

@@ -1,5 +1,6 @@
 import { normalizeGroup } from './core.js';
-import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup, inspectContent } from './vk-data.js?v=11.50';
+import {ownedPhotoDate,olderEvidence,FRESHNESS_VERSION} from './freshness.js';
+import { groupRows, isIncompleteGroup, isDeletedMarker, isUsableGroup, isClientFitGroup, inspectContent } from './vk-data.js?v=11.51';
 
 const DAY = 86400000;
 export const moscowDay = at => new Date(at + 10800000).toISOString().slice(0, 10);
@@ -38,7 +39,7 @@ export function recordBatch(state, ids, rows, at, startedAt = at) {
     }
     if (row && !row.deactivated) {
       const normalized = normalizeGroup(row);
-      rec.group = { ...rec.group, ...normalized, verifiedAt: at, verification: 'groups.getById', posts: rec.group?.posts ?? null, wallUnavailable: rec.group?.wallUnavailable ?? true, firstSeen: rec.group?.firstSeen ?? at, source: 'Сборщик ID · VK API', status: 'new' };
+      rec.group = { ...rec.group, ...normalized, oldestOwnedPhotoAt:Math.min(rec.group?.oldestOwnedPhotoAt??Infinity,normalized.oldestOwnedPhotoAt??Infinity)===Infinity?null:Math.min(rec.group?.oldestOwnedPhotoAt??Infinity,normalized.oldestOwnedPhotoAt??Infinity), verifiedAt: at, verification: 'groups.getById', posts: rec.group?.posts ?? null, wallUnavailable: rec.group?.wallUnavailable ?? true, firstSeen: rec.group?.firstSeen ?? at, source: 'Сборщик ID · VK API', status: 'new' };
       rec.available = true;
     } else {
       rec.available = false;
@@ -52,7 +53,7 @@ export function recordBatch(state, ids, rows, at, startedAt = at) {
 }
 export function verdict(rec, now = Date.now()) {
   if (!rec.appearance || !['candidate','frontier_candidate'].includes(rec.appearance.kind)) return 'baseline';
-  if (rec.oldestObservedPost && rec.oldestObservedPost < rec.appearance.from) return 'older';
+  if (olderEvidence(rec.group,rec.appearance,rec.oldestObservedPost,now)) return 'older';
   if(rec.appearance.kind==='frontier_candidate')return moscowDay(rec.appearance.from)===moscowDay(now)&&moscowDay(rec.appearance.to)===moscowDay(now)?'frontier_today':'frontier_other_day';
   if (moscowDay(rec.appearance.from) === moscowDay(now) && moscowDay(rec.appearance.to) === moscowDay(now)) return 'candidate_today';
   return 'candidate_other_day';
@@ -103,13 +104,18 @@ export class Collector {
       let items = first.items;
       if (first.count > 5) {
         const tail = await this.api('wall.get', { owner_id: -rec.id, count: 5, offset: Math.max(0, first.count - 5), filter: 'all' });
-        if (!Array.isArray(tail?.items)) throw Error('Некорректный ответ стены.');
+        if (!Number.isInteger(tail?.count)||tail.count!==first.count||!Array.isArray(tail.items)||!tail.items.length||!tail.items.some(p=>(p.owner_id??p.to_id)===-rec.id&&Number.isFinite(p.date)&&p.date>0&&p.date*1000<=this.clock())) throw Error('Не удалось проверить старые записи стены. Повторим проверку.');
         items = [...items, ...tail.items];
       }
       // Only a direct original wall post proves prior existence. Repost source dates do not.
       const dates = items.filter(p => (p.owner_id??p.to_id) === -rec.id && Number.isFinite(p.date) && p.date > 0 && p.date*1000 <= this.clock()).map(p => p.date*1000);
       if(first.count>0&&!dates.length)throw Error('Не подтверждены даты публикаций на стене сообщества.');
       if (dates.length) rec.oldestObservedPost = Math.min(rec.oldestObservedPost ?? Infinity, ...dates);
+      // A community-owned attachment also proves prior existence. An old
+      // photograph copied from a user or reposted elsewhere does not.
+      const photos=items.flatMap(p=>(p.attachments||[]).filter(a=>a.type==='photo').map(a=>ownedPhotoDate(a.photo,rec.id,this.clock()))).filter(Number.isFinite);
+      if(photos.length)rec.group.oldestOwnedPhotoAt=Math.min(rec.group.oldestOwnedPhotoAt??Infinity,...photos);
+      rec.group.freshnessCheckedVersion=FRESHNESS_VERSION;
       rec.group.posts = first.count; rec.group.wallUnavailable = false;
       rec.group.contentSafety = inspectContent(rec.group, items);
       rec.group.latestPost = first.items.filter(p => Number.isFinite(p.date)).reduce((m,p)=>Math.max(m,p.date),0) || null;
@@ -130,7 +136,7 @@ export class Collector {
         // mistaken for a whole batch of communities that did not yet exist.
         const requested = [...new Set([1, ...batch])];
         this.progress = `Проверка ID: ${offset} / ${ids.length}`;
-        const raw = await this.api('groups.getById', { group_ids: requested.join(','), fields: 'name,deactivated,members_count,city,activity,description,has_photo,cover,can_message' });
+        const raw = await this.api('groups.getById', { group_ids: requested.join(','), fields: 'name,deactivated,members_count,city,activity,description,has_photo,crop_photo,cover,can_message' });
         const rows = groupRows(raw, requested, {allowIncomplete:true});
         if (!rows.some(r=>r.id===1 && isUsableGroup(r))) throw Error('VK API не вернул полноценное контрольное сообщество ID 1. Отсутствие остальных ID не засчитано.');
         run.incomplete+=rows.filter(isIncompleteGroup).length;

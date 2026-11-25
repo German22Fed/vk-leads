@@ -33,7 +33,7 @@ test('Time selection survives repeated merges and switching hour / 1–3h / Mosc
  for(let i=0;i<3;i++){
   merged=mergeGroups(merged,rows,now+i*1000);
   const ids=period=>filterGroups(merged,{dateBasis:'appeared',period},now).map(g=>g.id);
-  assert.deepEqual(ids('1h'),[1,5]);assert.deepEqual(ids('1-3h'),[2]);assert.deepEqual(ids('today'),[1,2,3,5]);
+  assert.deepEqual(ids('1h'),[1]);assert.deepEqual(ids('1-3h'),[2]);assert.deepEqual(ids('today'),[1,2,3,5]);
   assert.deepEqual(filterGroups(merged,{dateBasis:'created',period:'today'},now),[]);
  }
 });

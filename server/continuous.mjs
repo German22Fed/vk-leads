@@ -1,3 +1,4 @@
+import {FRESHNESS_VERSION} from '../dist/freshness.js';
 import {Collector, publicRecord, verdict} from '../dist/collector-engine.js';
 import {findIdFrontier} from '../dist/id-discovery.js';
 import {groupRows, isUsableGroup, isLeadFitGroup, isAdultGroup, CONTENT_FILTER_VERSION} from '../dist/vk-data.js';
@@ -11,13 +12,13 @@ const DAY=86400000, HOUR=3600000;
 export const RECHECK_LIMIT=1000;
 export const SCAN_WIDTH=24000;
 const candidate=r=>['candidate','frontier_candidate'].includes(r.appearance?.kind);
-const fields='name,screen_name,photo_200,deactivated,members_count,city,activity,description,has_photo,cover,can_message';
+const fields='name,screen_name,photo_200,deactivated,members_count,city,activity,description,has_photo,crop_photo,cover,can_message';
 export function selectRechecks(records,now,limit=RECHECK_LIMIT){
   const day=Math.floor((now+10800000)/DAY)*DAY-10800000;
   const bucket=r=>r.appearance.from>=now-HOUR?0:r.appearance.from>=now-3*HOUR?1:r.appearance.from>=day?2:3;
   const pending=Object.values(records).filter(r=>candidate(r)&&!r.frontierWithdrawn&&r.appearance.from>=now-DAY&&
     r.group&&isLeadFitGroup(r.group)&&Number.isFinite(r.group.members)&&r.group.members<=500&&verdict(r,now)!=='older'&&
-    !(r.available&&r.group.contentSafety?.version===CONTENT_FILTER_VERSION&&r.group.wallUnavailable!==true&&r.group.verifiedAt>now-40*60000&&r.wallCheckedAt>now-40*60000&&!r.wallError));
+    !(r.available&&r.group.contentSafety?.version===CONTENT_FILTER_VERSION&&r.group.freshnessCheckedVersion===FRESHNESS_VERSION&&r.group.wallUnavailable!==true&&r.group.verifiedAt>now-40*60000&&r.wallCheckedAt>now-40*60000&&!r.wallError));
   // Reserve work for each time bucket, then give unused capacity back. A surge
   // in the last hour must not starve the 1–3h or today's queue indefinitely.
   const complete=r=>Number(r.group.avatar===true&&r.group.cover===true);
@@ -30,6 +31,26 @@ export function selectRechecks(records,now,limit=RECHECK_LIMIT){
 export function scanIds(state){
   const start=state.config.startId,end=Math.min(2147483647,start+SCAN_WIDTH-1);
   return Array.from({length:end-start+1},(_,i)=>start+i);
+}
+export async function probeAhead(state,api,now){
+  const start=state.config.startId;
+  let highest=state.frontierWatch.highest,checked=0;
+  for(const distance of [SCAN_WIDTH,SCAN_WIDTH*2,SCAN_WIDTH*4]){
+    const end=Math.min(2147479999,start+distance-1);
+    const ids=Array.from({length:99},(_,i)=>end-98+i);
+    const rows=groupRows(await api('groups.getById',{group_ids:[1,...ids].join(','),fields:'name,deactivated,is_closed'}),[1,...ids],{allowIncomplete:true});
+    if(!rows.some(r=>r.id===1&&isUsableGroup(r)))throw Error('Не пройдена контрольная проверка границы ID.');
+    const real=rows.filter(r=>r.id!==1&&isUsableGroup(r));checked+=ids.length;
+    if(real.length)highest=Math.max(highest,...real.map(r=>r.id));
+  }
+  const advanced=highest>=start+SCAN_WIDTH;
+  if(advanced){
+    state.config.startId=highest+1;
+    state.frontierWatch.highest=highest;
+    // Newly discovered existing IDs are a baseline, never fresh registrations.
+    state.frontierWatch.floorId=Math.max(state.frontierWatch.floorId,highest);
+  }
+  state.aheadCheck={at:now,checked,highest,advanced};return state.aheadCheck;
 }
 export function compactState(state,now){
   const rows=Object.values(state.records),keep=new Set(rows.filter(r=>r.id>=state.config.startId).map(r=>r.id));
@@ -45,7 +66,7 @@ export function compactState(state,now){
 }
 export const eligible=(r, now)=>r.available===true && candidate(r) && !r.frontierWithdrawn &&
   r.group && isLeadFitGroup(r.group) && Number.isFinite(r.group.members) && r.group.members<=500 &&
-  r.wallCheckedAt>=now-HOUR && !r.wallError && r.group.wallUnavailable===false &&
+  r.group.freshnessCheckedVersion===FRESHNESS_VERSION && r.wallCheckedAt>=now-HOUR && !r.wallError && r.group.wallUnavailable===false &&
   r.group.verifiedAt>=now-HOUR && verdict(r,now)!=='older' && r.appearance.from>=now-DAY;
 
 // Work on an isolated copy: a failed network cycle must not replace the checkpoint.
@@ -78,6 +99,7 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
   const previousRun=engine.state.runs[0];
   const run=await engine.cycle();
   if(run.status!=='ok')throw Error('Цикл VK не завершён. Предыдущая база сохранена.');
+  await probeAhead(engine.state,api,clock());
   // Revisit provisional names after the scan window has moved on. Keep the
   // original appearance evidence; renaming never resets a group's age.
   const renames=Object.values(engine.state.records).filter(r=>candidate(r)&&!r.frontierWithdrawn&&r.appearance.to>=clock()-DAY&&r.group&&!isLeadFitGroup(r.group)&&!isAdultGroup(r.group)&&(r.qualificationCheckedAt||r.group.verifiedAt)<clock()-15*60000)
@@ -88,7 +110,7 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
     if(!rows.some(r=>r.id===1&&isUsableGroup(r)))throw Error('Контрольная группа недоступна. База не изменена.');
     const map=new Map(rows.map(r=>[r.id,r]));
     for(const rec of batch){const row=map.get(rec.id);rec.qualificationCheckedAt=clock();rec.available=isUsableGroup(row)&&!row.is_closed;
-      if(rec.available)rec.group={...rec.group,...normalizeGroup(row),verifiedAt:clock(),verification:'groups.getById'};
+      if(rec.available){const normalized=normalizeGroup(row);rec.group={...rec.group,...normalized,oldestOwnedPhotoAt:Math.min(rec.group.oldestOwnedPhotoAt??Infinity,normalized.oldestOwnedPhotoAt??Infinity)===Infinity?null:Math.min(rec.group.oldestOwnedPhotoAt??Infinity,normalized.oldestOwnedPhotoAt??Infinity),verifiedAt:clock(),verification:'groups.getById'};}
     }
   }
   const candidates=selectRechecks(engine.state.records,clock());
@@ -103,7 +125,7 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
       const row=map.get(rec.id);
       rec.available=isLeadFitGroup(row)&&!row.is_closed;
       if(!rec.available)continue;
-      rec.group={...rec.group,...normalizeGroup(row),verifiedAt:clock(),verification:'groups.getById'};
+      const normalized=normalizeGroup(row);rec.group={...rec.group,...normalized,oldestOwnedPhotoAt:Math.min(rec.group.oldestOwnedPhotoAt??Infinity,normalized.oldestOwnedPhotoAt??Infinity)===Infinity?null:Math.min(rec.group.oldestOwnedPhotoAt??Infinity,normalized.oldestOwnedPhotoAt??Infinity),verifiedAt:clock(),verification:'groups.getById'};
       await engine.inspectWall(rec);
     }
     }
@@ -120,7 +142,7 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
   return {state:engine.state,feed:{version:1,status:'ok',updatedAt:now,startedAt:engine.state.bootstrap.at,
     observation:{checked:run.checked,returned:run.returned,deleted:run.deleted,usable:run.usable,omitted:run.omitted,incomplete:run.incomplete,tracked:Object.keys(engine.state.records).length,frontierProbes:Object.keys(engine.state.frontierWatch.probes).length,frontierCandidates:groups.filter(g=>g.observation.appearance.kind==='frontier_candidate').length},
     verification:{limit:RECHECK_LIMIT,attempted:candidates.length,published:groups.length},
-    coverage:{...diagnostics,scanStart,scanEnd:scanStart+run.checked-1,checkedThisPass:run.checked,
+    coverage:{...diagnostics,scanStart,scanEnd:scanStart+run.checked-1,checkedThisPass:run.checked,aheadCheck:engine.state.aheadCheck,
       gapSeconds:previousRun?Math.round((run.startedAt-previousRun.finishedAt)/1000):null,
       retentionDropped:engine.state.retentionDropped||0,allVkCovered:false},
     cycles:engine.state.cycles,checkedIds:Object.keys(engine.state.records).length,groups,

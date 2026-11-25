@@ -4,7 +4,7 @@ on:
     branches: [main]
     paths: ['server/**', 'dist/vk-data.js', 'dist/collector-engine.js', 'dist/id-discovery.js', '.github/workflows/vk-collector.yml']
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '7,17,27,37,47,57 * * * *'
   workflow_dispatch:
 permissions:
   contents: write
