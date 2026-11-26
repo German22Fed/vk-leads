@@ -8,6 +8,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  actions: read
   pages: write
   id-token: write
 concurrency:
@@ -57,6 +58,8 @@ jobs:
           path: dist
           retention-days: 1
       - name: Wait for Pages artifact visibility
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: node server/wait-pages-artifact.mjs
       - name: Deploy
         id: deployment
@@ -64,4 +67,3 @@ jobs:
       - name: Report collection failure after publishing diagnostics
         if: steps.collection.outcome == 'failure'
         run: exit 1
-
