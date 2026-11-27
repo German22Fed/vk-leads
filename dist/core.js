@@ -1,5 +1,5 @@
-import {ownedPhotoDate,olderEvidence,startingBusiness,intervalInside} from './freshness.js?v=11.52';
-import {isAdultGroup, inspectContent} from './vk-data.js?v=11.52';
+import {ownedPhotoDate,olderEvidence,startingBusiness,intervalInside} from './freshness.js?v=11.52.1';
+import {isAdultGroup, inspectContent} from './vk-data.js?v=11.52.1';
 export const DEFAULT_TEMPLATE="Здравствуйте!\n\nМеня зовут Герман, я профессиональный дизайнер и руководитель команды GRM Studio.\n\nПредлагаю профессиональное оформление вашего сообщества ВКонтакте, которое поможет выделиться среди конкурентов, повысить доверие клиентов и сделать ваш бизнес более привлекательным.\n\nЧто входит в оформление:\n• Разработка стильной обложки и аватара\n• Создание единого фирменного стиля\n• Дизайн кнопок меню и виджетов\n• Оформление карточек товаров и услуг\n• Разработка визуальных элементов сообщества\n\nСтоимость оформления — всего 2 000 ₽!\n\nСделаю ваше сообщество стильным, современным и привлекательным для потенциальных клиентов.\n\nПримеры моих работ:\nhttps://vk.ru/club240234680\nhttps://vk.ru/club239999236\nhttps://vk.ru/remonthomee\nhttps://vk.ru/club239566795\n\nХотели бы обновить оформление вашего сообщества? Буду рад сотрудничеству!\n\nОПЛАТА ТОЛЬКО ПОСЛЕ ПОЛНОГО ВЫПОЛНЕНИЯ РАБОТЫ!";
 export function parseGroups(text){
  const tokens=text.trim().split(/[\s,;]+/).filter(Boolean), ids=[], invalid=[];

@@ -16,3 +16,4 @@
 - https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow — workflow_dispatch через GITHUB_TOKEN создаёт отдельный запуск.
 - https://docs.github.com/en/actions/how-tos/troubleshoot-workflows — расписание может задерживаться.
 - https://raw.githubusercontent.com/VKCOM/vk-api-schema/master/groups/objects.json — поля группы; регистрация не подменяется start_date события.
+`nДополнение 11.52.1: для живой ленты сначала определяется SHA актуального main (не чаще раза в 3 минуты на открытое приложение), затем загружается JSON по неизменяемому адресу коммита. Это устраняет обнаруженный кеш адреса ветки. При ошибке публичного API остаётся адрес ветки и запасной Pages-снимок. Токены в браузер не передаются. 174 теста прошли.

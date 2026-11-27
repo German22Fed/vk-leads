@@ -1,6 +1,6 @@
-import {olderEvidence} from './freshness.js?v=11.52';
-import {isLeadFitGroup} from './vk-data.js?v=11.52';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.52';
+import {olderEvidence} from './freshness.js?v=11.52.1';
+import {isLeadFitGroup} from './vk-data.js?v=11.52.1';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.52.1';
 export function syncPeriodButtons(period,root=document){
   root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
     const active=(b.dataset.cloudPeriod??b.dataset.period)===period;
@@ -47,6 +47,21 @@ export function coverageText(data){
     'Количество карточек не равно числу созданных в VK групп. Интервал наблюдения не подтверждает регистрацию.';
 }
 export const LIVE_FEED_URL='https://raw.githubusercontent.com/German22Fed/vk-leads/main/dist/community-feed.json';
+export function liveFeedResolver({fetchImpl=fetch,clock=Date.now}={}){
+  let checkedAt=-Infinity,resolved=LIVE_FEED_URL;
+  return async()=>{
+    if(clock()-checkedAt<180000)return resolved;
+    checkedAt=clock();
+    try{
+      const res=await fetchImpl('https://api.github.com/repos/German22Fed/vk-leads/git/ref/heads/main?refresh='+clock(),{cache:'no-store',signal:AbortSignal.timeout(5000)});
+      if(!res.ok)throw Error('Head unavailable');
+      const data=await res.json(),sha=data.object?.sha;
+      if(data.ref!=='refs/heads/main'||!/^([a-f0-9]{40})$/.test(sha||''))throw Error('Invalid head');
+      resolved=LIVE_FEED_URL.replace('/main/',`/${sha}/`);
+    }catch{resolved=LIVE_FEED_URL;}
+    return resolved;
+  };
+}
 export async function newestFeed({urls,fetchImpl,now,timeoutMs}){
   const results=await Promise.allSettled(urls.map(async url=>{
     const endpoint=new URL(url);endpoint.searchParams.set('refresh',String(now));
@@ -62,12 +77,14 @@ export async function newestFeed({urls,fetchImpl,now,timeoutMs}){
 }
 export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,url=LIVE_FEED_URL,fallbackUrls=String(url)===LIVE_FEED_URL?[new URL('./community-feed.json',import.meta.url)]:[],timeoutMs=15000}){
   let pending=null,lastRaw=null;const known=new Set();let addedTotal=0;
+  const resolveLive=String(url)===LIVE_FEED_URL?liveFeedResolver({fetchImpl,clock}):async()=>url;
   return ()=>{
     if(pending)return pending;
     onState({kind:'loading',title:'Проверяем ленту…',message:'Загружаем последнюю проверку сборщика и применяем выбранный период.'});
     pending=Promise.resolve().then(async()=>{
       try{
-        const raw=await newestFeed({urls:[url,...fallbackUrls],fetchImpl,now:clock(),timeoutMs});
+        const source=String(url)===LIVE_FEED_URL?await resolveLive():url;
+        const raw=await newestFeed({urls:[source,...fallbackUrls],fetchImpl,now:clock(),timeoutMs});
         const hadSnapshot=!!lastRaw;
         const older=lastRaw&&raw.updatedAt<lastRaw.updatedAt;
         const data=validateFeed(older?lastRaw:raw,clock());

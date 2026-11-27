@@ -2,7 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {watchCollector,saveCheckpoint} from '../server/watch-collector.mjs';
 import {continueCollector} from '../server/continue-collector.mjs';
-import {newestFeed} from '../dist/hosted-feed.js';
+import {newestFeed,liveFeedResolver,LIVE_FEED_URL} from '../dist/hosted-feed.js';
+
+test('Live feed pins a validated commit and limits metadata requests; API failure falls back safely',async()=>{
+ let now=0,calls=0,fail=false;const sha='a'.repeat(40);
+ const resolve=liveFeedResolver({clock:()=>now,fetchImpl:async()=>{calls++;return {ok:!fail,json:async()=>({ref:'refs/heads/main',object:{sha}})};}});
+ assert.equal(await resolve(),LIVE_FEED_URL.replace('/main/',`/${sha}/`));
+ now=60000;await resolve();assert.equal(calls,1);
+ now=180000;fail=true;assert.equal(await resolve(),LIVE_FEED_URL);assert.equal(calls,2);
+ const unsafe=liveFeedResolver({fetchImpl:async()=>({ok:true,json:async()=>({ref:'refs/heads/main',object:{sha:'https://wrong.test'}})})});
+ assert.equal(await unsafe(),LIVE_FEED_URL);
+});
 import {retryVkReads} from '../server/retry-reads.mjs';
 
 test('Transient read failures retry with backoff; access denial and writes do not retry',async()=>{
