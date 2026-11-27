@@ -85,7 +85,9 @@ export async function collectOnce({previous=null,api,clock=Date.now,discover=fin
   // IDs remain unknown/baseline, never retroactively labelled as appeared.
   if(startedAt-(engine.state.lastFrontierCheck||0)>6*HOUR){
     const frontier=await discover({api});
-    if(frontier.id>=engine.state.config.startId+engine.state.config.width){
+    // The server observes 24,000 IDs, not the browser's 2,000-ID config width.
+    // Keep prior probes when the frontier is still inside that observed window.
+    if(frontier.id>=engine.state.config.startId+SCAN_WIDTH){
       await engine.configure({...engine.state.config,startId:frontier.id+1});
       engine.state.resyncs=(engine.state.resyncs||0)+1;
       engine.state.frontierWatch={version:1,floorId:frontier.id,highest:frontier.id,startedAt:clock(),probes:{}};
@@ -166,4 +168,3 @@ export function coverageReport(state,now,groups){
   }
   return {counts,periods,tracked:rows.length};
 }
-

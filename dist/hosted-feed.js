@@ -1,6 +1,6 @@
-import {olderEvidence} from './freshness.js?v=11.51.2';
-import {isLeadFitGroup} from './vk-data.js?v=11.51.2';
-import {hasCandidateInterval,filterGroups} from './core.js?v=11.51.2';
+import {olderEvidence} from './freshness.js?v=11.52';
+import {isLeadFitGroup} from './vk-data.js?v=11.52';
+import {hasCandidateInterval,filterGroups} from './core.js?v=11.52';
 export function syncPeriodButtons(period,root=document){
   root.querySelectorAll('[data-cloud-period],[data-period]').forEach(b=>{
     const active=(b.dataset.cloudPeriod??b.dataset.period)===period;
@@ -46,17 +46,28 @@ export function coverageText(data){
     (c.retentionDropped?`Удалено из истории из-за ограничения хранения: ${c.retentionDropped}. `:'')+
     'Количество карточек не равно числу созданных в VK групп. Интервал наблюдения не подтверждает регистрацию.';
 }
-export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,url=new URL('./community-feed.json',import.meta.url),timeoutMs=15000}){
+export const LIVE_FEED_URL='https://raw.githubusercontent.com/German22Fed/vk-leads/main/dist/community-feed.json';
+export async function newestFeed({urls,fetchImpl,now,timeoutMs}){
+  const results=await Promise.allSettled(urls.map(async url=>{
+    const endpoint=new URL(url);endpoint.searchParams.set('refresh',String(now));
+    const res=await fetchImpl(endpoint,{cache:'no-store',signal:AbortSignal.timeout(timeoutMs)});
+    if(!res.ok)throw Error(res.status===404?'Лента ещё не опубликована. Проверьте запуск сборщика.':'Не удалось загрузить ленту. Повторите попытку.');
+    let raw;try{raw=await res.json();}catch{throw Error('Сервер вернул некорректную ленту. Откройте журнал сборщика.');}
+    validateFeed(raw,now);
+    return {...raw,feedSource:String(url)};
+  }));
+  const feeds=results.filter(r=>r.status==='fulfilled').map(r=>r.value).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  if(!feeds.length)throw results.find(r=>r.status==='rejected').reason;
+  return feeds[0];
+}
+export function createFeedLoader({fetchImpl=fetch,onData,onState,clock=Date.now,url=LIVE_FEED_URL,fallbackUrls=String(url)===LIVE_FEED_URL?[new URL('./community-feed.json',import.meta.url)]:[],timeoutMs=15000}){
   let pending=null,lastRaw=null;const known=new Set();let addedTotal=0;
   return ()=>{
     if(pending)return pending;
     onState({kind:'loading',title:'Проверяем ленту…',message:'Загружаем последнюю проверку сборщика и применяем выбранный период.'});
     pending=Promise.resolve().then(async()=>{
       try{
-        const endpoint=new URL(url);endpoint.searchParams.set('refresh',String(clock()));
-        const res=await fetchImpl(endpoint,{cache:'no-store',signal:AbortSignal.timeout(timeoutMs)});
-        if(!res.ok)throw Error(res.status===404?'Лента ещё не опубликована. Проверьте запуск сборщика.':'Не удалось загрузить ленту. Повторите попытку.');
-        let raw;try{raw=await res.json();}catch{throw Error('Сервер вернул некорректную ленту. Откройте журнал сборщика.');}
+        const raw=await newestFeed({urls:[url,...fallbackUrls],fetchImpl,now:clock(),timeoutMs});
         const hadSnapshot=!!lastRaw;
         const older=lastRaw&&raw.updatedAt<lastRaw.updatedAt;
         const data=validateFeed(older?lastRaw:raw,clock());
@@ -90,7 +101,7 @@ export function initHostedFeed(onUpdate,_seed,options){
     <p id="cloudRefreshInfo" class="refreshInfo">Автообновление каждую минуту, пока приложение открыто.</p>
     <details><summary>Охват поиска и причины отсева</summary><p id="cloudCoverage"></p></details>
     <div id="cloudSetup" hidden><p>Подключение требуется один раз владельцу приложения. Посетителям ключ не нужен.</p><a class="link" href="https://github.com/German22Fed/vk-leads/settings/secrets/actions" target="_blank" rel="noopener noreferrer">Добавить VK_SERVICE_TOKEN ↗</a> · <a class="link" href="https://github.com/German22Fed/vk-leads/actions/workflows/vk-collector.yml" target="_blank" rel="noopener noreferrer">Запустить сборщик / журнал ошибок ↗</a></div>
-    <small>Кандидаты у растущей верхней границы ID: раньше VK возвращал заглушку, теперь — доступное сообщество. Начальная база, повторы и обнаруженные старые посты исключаются. Период — интервал этого перехода, не дата регистрации. Ранее скрытые или восстановленные группы полностью исключить нельзя. Проверки по расписанию раз в 10 минут; возможны задержки.</small>`;
+    <small>Кандидаты у растущей верхней границы ID: раньше VK возвращал заглушку, теперь — доступное сообщество. Начальная база, повторы и обнаруженные старые материалы исключаются. Период целиком ограничивает интервал перехода, а не дату регистрации. Сборщик повторяет проверки в рабочем сеансе с целевым интервалом 5 минут; запросы и очередь GitHub могут задержать обновление. Ранее скрытые или восстановленные группы полностью исключить нельзя.</small>`;
   const status=document.getElementById('cloudStatus'),badge=document.getElementById('cloudBadge'),button=document.getElementById('cloudRefresh');
   const mainButton=document.getElementById('searchBtn'),summary=document.getElementById('searchFeedback');
   syncPeriodButtons(document.getElementById('period').value);

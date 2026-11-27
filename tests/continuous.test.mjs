@@ -67,8 +67,16 @@ test('Compaction retains active window, bounds pending history and never reuses 
 test('Resynchronization after a gap starts a new baseline and never fabricates historical groups',async()=>{
  const f=fixture();let r=await collectOnce(f);
  r.state.lastFrontierCheck=f.clock()-7*3600000;
+  r=await collectOnce({...f,previous:r.state,discover:async()=>({id:40000})});
+  assert.equal(r.state.config.startId,40001);assert.equal(r.state.resyncs,1);assert.deepEqual(r.feed.groups,[]);
+});
+
+test('A delayed run keeps prior absence evidence inside the actual 24000-ID scan window',async()=>{
+ const f=fixture();let r=await collectOnce(f);const floor=r.state.frontierWatch.floorId;
+ r.state.lastFrontierCheck=f.clock()-7*3600000;
  r=await collectOnce({...f,previous:r.state,discover:async()=>({id:10000})});
- assert.equal(r.state.config.startId,10001);assert.equal(r.state.resyncs,1);assert.deepEqual(r.feed.groups,[]);
+ assert.equal(r.state.resyncs,undefined);assert.equal(r.state.frontierWatch.floorId,floor);
+ assert.ok(r.state.frontierWatch.probes[10000]);
 });
 
 test('250 real-shaped transitions survive verification, batching, periods and repeated cycles',async()=>{
@@ -159,6 +167,5 @@ test('Coverage reports boundary uncertainty without assigning a guessed hour',()
  assert.equal(report.periods['1h'].published,0);assert.equal(report.periods['1h'].uncertainBoundary,1);
  assert.equal(report.periods['today'].published,1);
 });
-
 
 

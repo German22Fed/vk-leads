@@ -4,13 +4,11 @@ on:
     branches: [main]
     paths: ['server/**', 'dist/vk-data.js', 'dist/collector-engine.js', 'dist/id-discovery.js', '.github/workflows/vk-collector.yml']
   schedule:
-    - cron: '7,17,27,37,47,57 * * * *'
+    - cron: '7,27,47 * * * *'
   workflow_dispatch:
 permissions:
   contents: write
-  actions: read
-  pages: write
-  id-token: write
+  actions: write
 concurrency:
   group: vk-collector
   cancel-in-progress: false
@@ -18,10 +16,7 @@ jobs:
   collect:
     if: github.event.repository.private == false
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,40 +25,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Collect and verify
-        id: collection
-        continue-on-error: true
+      - name: Monitor and publish verified snapshots
+        id: watch
         env:
           VK_SERVICE_TOKEN: ${{ secrets.VK_SERVICE_TOKEN }}
-        run: |
-          node server/run-continuous.mjs
-          # Revisit the recorded frontier within this job instead of relying
-          # entirely on the next (potentially delayed) scheduled invocation.
-          # Each successful pass persists its checkpoint; the second pass
-          # reuses recent wall checks and verifies newly appeared candidates.
-          node server/run-continuous.mjs
-      - name: Save checkpoint and public feed
-        run: |
-          git config user.name 'VK Leads Collector'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add dist/community-feed.json
-          if [ -f collector-data/state.json ]; then git add -f collector-data/state.json; fi
-          git diff --cached --quiet || git commit -m 'Update community feed and collector status'
-          git fetch origin main
-          git rebase origin/main
-          git push origin HEAD:main
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-          retention-days: 1
-      - name: Wait for Pages artifact visibility
+          # A release gets a short first session; successors run for 50 minutes.
+          MONITOR_MINUTES: ${{ github.event_name == 'push' && '15' || '50' }}
+        run: node server/watch-collector.mjs
+      - name: Queue next monitoring session
+        if: success() && !cancelled()
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node server/wait-pages-artifact.mjs
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
-      - name: Report collection failure after publishing diagnostics
-        if: steps.collection.outcome == 'failure'
-        run: exit 1
+        run: node server/continue-collector.mjs
